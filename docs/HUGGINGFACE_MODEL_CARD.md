@@ -8,7 +8,7 @@
 
 ## Model summary
 
-用于 [Rime](https://rime.im) 输入法插件 [librime-ai-predict](../..) 的 **CTranslate2** 导出模型：拼音上下文 → 中文续写候选（seq2seq）。
+用于 [Rime](https://rime.im) 输入法插件 **librime-ai-predict**（见 GitHub 仓库说明）的 **CTranslate2** 导出模型：拼音上下文 → 中文续写候选（seq2seq）。
 
 - **框架**：*（例如 PyTorch 训练 → ONNX / OpenNMT → ct2-transformers 转换）*
 - **推理**：仅支持通过 CTranslate2 加载；插件期望目录内含至少：

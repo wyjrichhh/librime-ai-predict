@@ -13,6 +13,15 @@ git submodule update --init --recursive
 
 将本插件放入 `plugins/librime-ai-predict`（clone 你的 `librime-ai-predict` 仓库，或复制目录）。
 
+进入插件目录后**务必**初始化 CT2 子模块：
+
+```bash
+cd plugins/librime-ai-predict
+git submodule update --init deps/CTranslate2
+```
+
+（维护者自测：已用 `git clone file:///…/librime-ai-predict` 验证提交历史与子模块指针正常。）
+
 ## 2. 构建 CTranslate2（插件目录）
 
 ```bash
