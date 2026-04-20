@@ -200,14 +200,6 @@ PredictTranslator   ──┐                          comment="AI"
 | `make deps` 子模块失败 | 配置代理后重试；或手动 `git submodule update --init deps/CTranslate2` |
 | 编译找不到 nlohmann | 先执行插件目录 `make deps`，确保 `include/nlohmann/json.hpp` 存在 |
 
-## 端到端复现记录
-
-从零克隆到本机可运行的步骤摘要见 [`docs/FRESH_CLONE_REPRO.md`](docs/FRESH_CLONE_REPRO.md)。
-
-## 与上游沟通（草稿）
-
-发给维护者前可参考 [`docs/DISCUSSION_DRAFT.md`](docs/DISCUSSION_DRAFT.md)（勿视为已发送）。
-
 ## 许可证
 
 见 [LICENSE](LICENSE)（BSD 3-Clause，与 [librime](https://github.com/rime/librime) 一致）。
