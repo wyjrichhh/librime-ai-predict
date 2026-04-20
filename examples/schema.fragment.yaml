@@ -1,0 +1,48 @@
+# Fragment to merge into your Rime schema (e.g. luna_pinyin.schema.yaml).
+#
+# Architecture:
+#   - ai_predict_translator   : drives async CT2 inference, also publishes the
+#                               current AI suggestion via Context property
+#                               `ai_predict/text` and emits a fallback candidate
+#                               that yields slot #1 and claims slot #2.
+#   - ai_predict_filter       : reads the property and rewrites the candidate
+#                               stream so the AI suggestion always lands at
+#                               slot #2, deduplicated against existing
+#                               candidates (ShadowCandidate-wrapped to preserve
+#                               commit history type/preedit/quality).
+#
+# IMPORTANT: list `ai_predict_translator` FIRST among translators so that
+#   MergedTranslation::Elect actually consults it before any other translator
+#   gets to claim slot #2. The filter then refines/deduplicates.
+#
+# In default.custom.yaml (or default.yaml) add module `ai_predict`:
+#   patch:
+#     schema_list:
+#       - schema: luna_pinyin
+#     menu/page_size: 9
+#   modules:
+#     - ai_predict
+#
+# Then patch your schema file:
+#
+# patch:
+#   engine/translators:
+#     - ai_predict_translator     # MUST be first
+#     - punct_translator
+#     - script_translator
+#   engine/filters:
+#     - simplifier
+#     - uniquifier
+#     - ai_predict_filter         # safe to put last; runs after dedup
+#   ai_predict:
+#     model_path: predict_models/zh-base-ct2-int8
+#     min_input_length: 1
+#     context_window_size: 10
+#     debounce_ms: 200
+#     max_tokens: 64
+#     device: cpu
+#     # Filter knobs (optional):
+#     target_index: 1             # 0-based slot for the AI candidate (default 1 → 2nd)
+#     search_range: 10            # how many upstream candidates to scan for dedup
+#     # Translator knob (optional, mostly for debugging):
+#     quality: -1
