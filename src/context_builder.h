@@ -40,18 +40,19 @@ struct PredictionContext {
   /// then typed pinyin and the suggestion comes back as "，你好"); without
   /// this strip the candidate would visually duplicate the punctuation.
   string last_punct;
-  /// True when prediction was triggered in "windowed" mode (short pinyin +
-  /// non-empty Chinese context). False for "direct" mode (long pinyin alone).
+  /// True when prediction was issued with a non-empty `window_text`
+  /// (context-aware mode). False for context-free mode (pinyin alone, used
+  /// only on cold start when no usable commit history exists).
   bool windowed = false;
 };
 
 struct ContextBuilderOptions {
-  /// Switch point AND minimum length for context-less prediction:
-  ///   - prompt.length >= min_effective_length → direct mode (no context)
-  ///   - prompt.length <  min_effective_length → windowed mode (requires
-  ///                                              non-empty window_text)
-  /// Lower values surface AI candidates earlier when context exists.
-  int min_effective_length = 6;
+  /// Minimum prompt length (bytes) required to trigger prediction WHEN there
+  /// is no usable Chinese context. With context, prediction triggers on any
+  /// non-empty prompt -- the committed text already carries enough signal.
+  /// Without context, we require a longer prompt so the model has something
+  /// concrete to work with (a 2-3 letter fragment alone hallucinates).
+  int min_effective_length = 12;
   /// Max history records to scan for sliding window.
   int context_window_size = 10;
 };

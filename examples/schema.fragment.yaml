@@ -15,16 +15,19 @@
 #   MergedTranslation::Elect actually consults it before any other translator
 #   gets to claim slot #2. The filter then refines/deduplicates.
 #
-# In default.custom.yaml (or default.yaml) add module `ai_predict`:
-#   patch:
-#     schema_list:
-#       - schema: luna_pinyin
-#     menu/page_size: 9
-#   modules:
-#     - ai_predict
+# Note: *.custom.yaml files are patch files you create yourself in
+#       ~/Library/Rime/. They do NOT exist by default. Use `cat > ... <<EOF`
+#       or any editor to create them with the contents below, then redeploy.
 #
-# Then patch your schema file:
+# ─── ~/Library/Rime/default.custom.yaml ──────────────────────────────────────
+# patch:
+#   schema_list:
+#     - schema: luna_pinyin
+#   menu/page_size: 9
+#   # Append ai_predict to default.yaml's modules list (rime list-append syntax)
+#   'modules/@next': ai_predict
 #
+# ─── ~/Library/Rime/luna_pinyin.custom.yaml ──────────────────────────────────
 # patch:
 #   engine/translators:
 #     - ai_predict_translator     # MUST be first
@@ -36,10 +39,12 @@
 #     - ai_predict_filter         # safe to put last; runs after dedup
 #   ai_predict:
 #     model_path: predict_models/zh-base-ct2-int8
-#     # Mode switch (bytes). prompt < threshold → windowed (needs context);
-#     # prompt >= threshold → direct (drops context, infers from pinyin alone).
-#     # Lower values surface AI candidates earlier when context exists.
-#     min_input_length: 6
+#     # Minimum prompt length (bytes) to trigger prediction WHEN there is no
+#     # usable Chinese context. With context, any non-empty prompt triggers --
+#     # the committed prefix already gives the model enough signal. Without
+#     # context (cold start, just after Return/BackSpace, history is all
+#     # punct/raw), the prompt must be long enough to anchor the model alone.
+#     min_input_length: 12
 #     context_window_size: 10
 #     debounce_ms: 200
 #     max_tokens: 64

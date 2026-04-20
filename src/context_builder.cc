@@ -149,7 +149,7 @@ std::optional<PredictionContext> ContextBuilder::Build(
   if (prompt.empty()) {
     return std::nullopt;
   }
-  int threshold = opt.min_effective_length > 0 ? opt.min_effective_length : 6;
+  int threshold = opt.min_effective_length > 0 ? opt.min_effective_length : 12;
 
   string window_text;
   string last_punct;
@@ -158,26 +158,25 @@ std::optional<PredictionContext> ContextBuilder::Build(
                        &window_text, &last_punct);
   }
 
-  // Single-threshold mode-selection:
-  //   - prompt.length >= threshold → direct mode: pinyin alone is descriptive
-  //     enough; intentionally drop window_text to avoid the model being
-  //     pulled toward an older topic.
-  //   - prompt.length <  threshold → windowed mode: short pinyin needs the
-  //     committed Chinese prefix to disambiguate. If no context exists, give
-  //     up (the model would only hallucinate from a 2-3 letter fragment).
-  bool windowed = static_cast<int>(prompt.length()) < threshold;
-  if (windowed && window_text.empty()) {
+  // Trigger policy (context-first):
+  //   - If `window_text` is non-empty, ALWAYS feed it to the model regardless
+  //     of prompt length -- the committed Hanzi prefix is the strongest signal
+  //     we have, and dropping it for "long" prompts (the previous behavior)
+  //     made mid-length inputs like `chuangkou + 现在在什么情况下会` lose all
+  //     coherence and produce dictionary-style noise like `（创客）`.
+  //   - If `window_text` is empty (cold start, just after BackSpace/Return,
+  //     or only punct/thru/raw in history), require `prompt.length >=
+  //     threshold` so the model has enough to chew on; otherwise skip.
+  bool has_context = !window_text.empty();
+  if (!has_context && static_cast<int>(prompt.length()) < threshold) {
     return std::nullopt;
-  }
-  if (!windowed) {
-    window_text.clear();
   }
 
   PredictionContext ctx;
   ctx.effective_prompt = prompt;
   ctx.window_text = window_text;
   ctx.last_punct = last_punct;
-  ctx.windowed = windowed;
+  ctx.windowed = has_context;
   // Cache key is "window_text|prompt" so the same pinyin under different
   // upstream contexts gets separate cache entries. The pipe is safe because
   // neither component contains a literal '|' (window_text is Hanzi, prompt

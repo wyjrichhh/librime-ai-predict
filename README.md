@@ -18,9 +18,13 @@ cd ~/work
 git clone --recursive -b feat/ai-inference https://github.com/wyjrichhh/squirrel.git
 cd squirrel
 
-# 1. 注册本插件 + 预编译其依赖（CTranslate2）
-bash librime/install-plugins.sh wyjrichhh/librime-ai-predict
-( cd librime/plugins/ai-predict && make deps )
+# 1. 注册插件（squirrel Xcode 工程要求 lua/octagram/predict 也必须在场）
+bash librime/install-plugins.sh \
+    hchunhui/librime-lua \
+    lotem/librime-octagram \
+    rime/librime-predict \
+    wyjrichhh/librime-ai-predict
+( cd librime/plugins/ai-predict && make deps )   # 仅 ai-predict 需要预编 CT2
 
 # 2. 编译并安装鼠须管（含本插件）
 export BOOST_ROOT="$(brew --prefix boost)"
@@ -131,7 +135,7 @@ ai_predict:
 | 键 | 说明 | 默认 |
 |----|------|------|
 | `ai_predict/model_path` | CT2 模型目录；相对路径基于 `user_data_dir` | — |
-| `ai_predict/min_input_length` | 模式切换点（字节）。`prompt < 阈值` 时走 windowed 模式（必须有上下文，否则不触发）；`prompt >= 阈值` 时走 direct 模式（独立推理，丢弃上下文） | `6` |
+| `ai_predict/min_input_length` | 无上下文时触发推理的最小拼音字节数。**有上下文（`window_text` 非空）时此阈值不生效，任意非空 prompt 都会触发**；只有冷启动 / 刚按过回车退格 / history 全是标点等场景才用这个阈值兜底 | `12` |
 | `ai_predict/context_window_size` | 从 commit history 取多少条作为上下文窗口 | `10` |
 | `ai_predict/debounce_ms` | 防抖间隔（毫秒） | `200` |
 | `ai_predict/max_tokens` | CT2 单次解码上限 | `256` |
