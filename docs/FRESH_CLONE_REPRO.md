@@ -41,8 +41,10 @@ make
 
 ## 4. 模型
 
-- [ ] 运行 `./plugins/librime-ai-predict/scripts/download_model.sh`，或
+- [ ] 设置 `MODEL_URL`（GitHub Release 附件 URL）后运行 `./plugins/librime-ai-predict/scripts/download_model.sh`，或设置 `HUGGINGFACE_REPO` 使用 HF，或
 - [ ] 手动将 CT2 目录放到 `~/Library/Rime/predict_models/zh-base-ct2-int8/`
+
+（脚本在未配置任何下载源时会退出并提示；见 `docs/MODEL_GITHUB_RELEASE.md`。）
 
 ## 5. Rime 配置
 

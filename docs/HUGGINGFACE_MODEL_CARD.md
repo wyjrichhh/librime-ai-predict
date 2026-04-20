@@ -1,6 +1,8 @@
 # Hugging Face Model Card 模板
 
-将以下内容保存为仓库根目录的 `README.md`（Hugging Face 模型页展示用）。请把**斜体占位**替换为你的真实情况。
+若你选择用 **Hugging Face** 分发模型，将以下内容保存为模型仓库根目录的 `README.md`（HF 模型页展示用）。若模型仅 **300MB 左右**且希望与代码同平台，也可只用 [GitHub Releases](MODEL_GITHUB_RELEASE.md)，不必使用 HF。
+
+请把**斜体占位**替换为你的真实情况。
 
 ---
 
