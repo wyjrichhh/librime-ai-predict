@@ -74,30 +74,69 @@ string ExtractCurrentPrediction(const string& llm_result,
   return string(it, clean.end());
 }
 
-string BuildHistoryContextString(Context* ctx, int max_records) {
-  if (!ctx)
-    return string();
+/// Walk commit history (most recent first, capped at `max_records`) and
+/// reconstruct the Chinese context window plus the most recent leading
+/// punctuation (if any).
+///
+/// Skip policy (denylist):
+///   - "punct" / "thru" records never enter `window_text` (not semantic
+///     Chinese context; the most recent one is captured separately into
+///     `last_punct` so the display layer can strip it from the model
+///     output).
+///   - "raw" records never enter `window_text` either. librime emits "raw"
+///     when a segment has no translation candidate and the user commits the
+///     literal ASCII (e.g. typed `quickstart` then hit Return), or when a
+///     translator calls Engine::CommitText directly. Feeding this ASCII
+///     string into a Chinese LLM as context causes the model to faithfully
+///     replay it as a prefix (e.g. window="quickstart" + pinyin="baoliu" →
+///     model output "QUICKSTART保留"), which then either leaks into the
+///     candidate verbatim or breaks the prefix-strip in
+///     ExtractCurrentPrediction (case/encoding mismatch).
+///   - Everything else, including our own previously committed "ai_predict"
+///     candidates, is treated as ordinary user-confirmed content. Rationale:
+///     committing an AI suggestion requires an explicit user keypress, so by
+///     the time it lands in commit_history it is semantically equivalent to
+///     any other Hanzi commit -- excluding it would discard exactly the
+///     coherence signal we want the next prediction to build on.
+void BuildWindowContext(Context* ctx,
+                        int max_records,
+                        string* window_text_out,
+                        string* last_punct_out) {
+  if (!ctx || !window_text_out)
+    return;
   const CommitHistory& history = ctx->commit_history();
-  vector<string> recent_commits;
+
+  // Snapshot the most recent commit record once: if (and only if) it is of
+  // type punct/thru we remember its text as `last_punct`. Anything else
+  // (e.g. a Hanzi commit) leaves last_punct empty -- we only want to strip a
+  // punctuation that is *immediately* adjacent to the new pinyin input, not
+  // an arbitrary historical one.
+  if (last_punct_out && !history.empty()) {
+    const auto& back = *history.rbegin();
+    if (back.type == "punct" || back.type == "thru") {
+      *last_punct_out = back.text;
+    }
+  }
+
+  std::vector<string> recent_commits;
   size_t collected = 0;
   for (auto it = history.rbegin();
        it != history.rend() && collected < static_cast<size_t>(max_records);
        ++it) {
-    // Skip auxiliary records and our own AI candidates to avoid feeding
-    // the model its own past output (which causes runaway snowballing).
-    if (it->type == "punct" || it->type == "thru" || it->type == "ai_predict")
+    if (it->type == "punct" || it->type == "thru" || it->type == "raw")
+      continue;
+    if (it->text.empty())
       continue;
     recent_commits.push_back(it->text);
     ++collected;
   }
   std::reverse(recent_commits.begin(), recent_commits.end());
-  string context_string;
+
+  string& out = *window_text_out;
+  out.clear();
   for (const auto& text : recent_commits) {
-    if (!context_string.empty())
-      context_string += " ";
-    context_string += text;
+    out += text;  // No separator: model expects continuous Chinese text.
   }
-  return context_string;
 }
 
 }  // namespace
@@ -107,94 +146,44 @@ std::optional<PredictionContext> ContextBuilder::Build(
     const string& raw_input,
     const ContextBuilderOptions& opt) {
   string prompt = StripSpaces(raw_input);
-  int threshold = opt.min_effective_length;
-  if (threshold < 1)
-    threshold = 10;
+  if (prompt.empty()) {
+    return std::nullopt;
+  }
+  int threshold = opt.min_effective_length > 0 ? opt.min_effective_length : 6;
 
-  string window_pinyin;
   string window_text;
   string last_punct;
-
   if (engine && engine->context()) {
-    const CommitHistory& history = engine->context()->commit_history();
-    // Snapshot the most recent commit record: if (and only if) it is of type
-    // punct/thru we remember its text as `last_punct`, mirroring shell-input.
-    // Anything else (e.g. a Hanzi commit) leaves last_punct empty -- we only
-    // want to strip a punctuation that is *immediately* adjacent to the new
-    // pinyin input, not an arbitrary historical one.
-    if (!history.empty()) {
-      const auto& back = *history.rbegin();
-      if (back.type == "punct" || back.type == "thru") {
-        last_punct = back.text;
-      }
-    }
-    size_t count = 0;
-    for (auto it = history.rbegin();
-         it != history.rend() && count < static_cast<size_t>(opt.context_window_size);
-         ++it) {
-      if (it->type == "punct" || it->type == "thru" || it->type == "ai_predict")
-        continue;
-      // CommitRecord only has type + text (see rime/commit_history.h). Walk recent
-      // raw ASCII segments (pinyin still being composed); stop at committed Hanzi.
-      const string& t = it->text;
-      if (t.empty())
-        break;
-      bool all_alpha = true;
-      for (unsigned char c : t) {
-        if (c < 'a' || c > 'z') {
-          all_alpha = false;
-          break;
-        }
-      }
-      if (!all_alpha)
-        break;
-      window_pinyin = t + window_pinyin;
-      ++count;
-    }
+    BuildWindowContext(engine->context(), opt.context_window_size,
+                       &window_text, &last_punct);
   }
 
-  int switch_point =
-      std::min(static_cast<int>(window_pinyin.length()), threshold);
-  bool has_window = !window_pinyin.empty() &&
-                    static_cast<int>(prompt.length()) <= switch_point;
-  string effective_prompt;
-  if (has_window) {
-    effective_prompt = window_pinyin + prompt;
-  } else {
-    effective_prompt = prompt;
-    window_text = "";
-  }
-
-  int effective_len = static_cast<int>(effective_prompt.length());
-  if (effective_len < threshold || effective_prompt.empty()) {
+  // Single-threshold mode-selection:
+  //   - prompt.length >= threshold → direct mode: pinyin alone is descriptive
+  //     enough; intentionally drop window_text to avoid the model being
+  //     pulled toward an older topic.
+  //   - prompt.length <  threshold → windowed mode: short pinyin needs the
+  //     committed Chinese prefix to disambiguate. If no context exists, give
+  //     up (the model would only hallucinate from a 2-3 letter fragment).
+  bool windowed = static_cast<int>(prompt.length()) < threshold;
+  if (windowed && window_text.empty()) {
     return std::nullopt;
+  }
+  if (!windowed) {
+    window_text.clear();
   }
 
   PredictionContext ctx;
-  ctx.effective_prompt = effective_prompt;
-  ctx.window_pinyin = window_pinyin;
+  ctx.effective_prompt = prompt;
   ctx.window_text = window_text;
   ctx.last_punct = last_punct;
-  ctx.windowed = has_window;
-
-  // Assemble CT2 input (same convention as shell-input LlmTranslator).
-  string raw_pinyin = effective_prompt;
-  string ct2_prefix;
-  if (!window_text.empty() && !window_pinyin.empty() &&
-      effective_prompt.length() >= window_pinyin.length() &&
-      effective_prompt.substr(0, window_pinyin.length()) == window_pinyin) {
-    raw_pinyin = effective_prompt.substr(window_pinyin.length());
-    ct2_prefix = window_text;
-  } else if (window_text.empty() && engine && engine->context()) {
-    string ct2_context =
-        BuildHistoryContextString(engine->context(), opt.context_window_size);
-    ct2_context.erase(std::remove(ct2_context.begin(), ct2_context.end(), ' '),
-                      ct2_context.end());
-    ct2_prefix = ct2_context;
-  }
-
-  ctx.ct2_input =
-      ct2_prefix + "<pinyin_start>" + raw_pinyin + "</pinyin_start>";
+  ctx.windowed = windowed;
+  // Cache key is "window_text|prompt" so the same pinyin under different
+  // upstream contexts gets separate cache entries. The pipe is safe because
+  // neither component contains a literal '|' (window_text is Hanzi, prompt
+  // is a-z only).
+  ctx.cache_key = window_text + "|" + prompt;
+  ctx.ct2_input = window_text + "<pinyin_start>" + prompt + "</pinyin_start>";
   return ctx;
 }
 

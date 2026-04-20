@@ -45,8 +45,8 @@ PredictionEngine::~PredictionEngine() {
 void PredictionEngine::Schedule(const PredictionContext& ctx) {
   std::lock_guard<std::mutex> lock(worker_mutex_);
   pending_ct2_input_ = ctx.ct2_input;
-  pending_cache_key_ = ctx.effective_prompt;
-  pending_window_text_ = ctx.window_text;
+  pending_cache_key_ = ctx.cache_key;
+  pending_prompt_ = ctx.effective_prompt;
   worker_cv_.notify_one();
 }
 
@@ -69,7 +69,7 @@ void PredictionEngine::WorkerLoop() {
   while (true) {
     string ct2_input;
     string cache_key;
-    string window_text_snap;
+    string prompt_snap;
     {
       std::unique_lock<std::mutex> lock(worker_mutex_);
       worker_cv_.wait(lock, [this] {
@@ -81,7 +81,7 @@ void PredictionEngine::WorkerLoop() {
       ct2_input = pending_ct2_input_;
       pending_ct2_input_.clear();
       cache_key = pending_cache_key_;
-      window_text_snap = pending_window_text_;
+      prompt_snap = pending_prompt_;
 
       // Debounce: wait for quiet period, coalescing rapid updates.
       while (true) {
@@ -95,7 +95,7 @@ void PredictionEngine::WorkerLoop() {
           ct2_input = pending_ct2_input_;
           pending_ct2_input_.clear();
           cache_key = pending_cache_key_;
-          window_text_snap = pending_window_text_;
+          prompt_snap = pending_prompt_;
         }
       }
     }
@@ -128,11 +128,14 @@ void PredictionEngine::WorkerLoop() {
     if (engine_ && engine_->context()) {
       Context* ctx = engine_->context();
       string current = StripSpaces(ctx->input());
-      string key = StripSpaces(cache_key);
+      // Composition consistency check uses the pure pinyin (prompt_snap),
+      // since ctx->input() is also pure pinyin -- the cache_key carries the
+      // window_text prefix which is NEVER part of ctx->input().
+      string key = StripSpaces(prompt_snap);
       if (!key.empty() && current.find(key) == string::npos &&
           key.find(current) == string::npos) {
         LOG(INFO) << "PredictionEngine: skip refresh, composition changed"
-                  << " (cache_key='" << cache_key << "' current_input='"
+                  << " (prompt='" << prompt_snap << "' current_input='"
                   << ctx->input() << "')";
         continue;
       }

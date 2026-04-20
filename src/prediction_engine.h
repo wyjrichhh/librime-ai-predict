@@ -44,7 +44,9 @@ class PredictionEngine {
   /// Enqueue CT2 inference; returns immediately. On completion, notifies context.
   void Schedule(const PredictionContext& ctx);
 
-  /// Last completed raw model output for cache_key (effective_prompt).
+  /// Last completed raw model output keyed by `PredictionContext::cache_key`
+  /// (which combines window_text and effective_prompt to avoid
+  /// cross-context pollution).
   std::optional<std::string> GetCachedResult(const std::string& cache_key) const;
 
   void ClearCache();
@@ -63,7 +65,11 @@ class PredictionEngine {
 
   std::string pending_ct2_input_;
   std::string pending_cache_key_;
-  std::string pending_window_text_;
+  // Pure pinyin (effective_prompt) of the in-flight request. Kept separately
+  // from cache_key so that the post-inference "did the composition still
+  // match?" check compares against ctx->input() (which is also pure pinyin),
+  // not against the cache_key (which carries the window_text prefix).
+  std::string pending_prompt_;
 
   mutable std::mutex result_mutex_;
   std::string last_cache_key_;

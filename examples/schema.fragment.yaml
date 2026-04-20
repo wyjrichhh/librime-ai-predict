@@ -36,7 +36,10 @@
 #     - ai_predict_filter         # safe to put last; runs after dedup
 #   ai_predict:
 #     model_path: predict_models/zh-base-ct2-int8
-#     min_input_length: 1
+#     # Mode switch (bytes). prompt < threshold → windowed (needs context);
+#     # prompt >= threshold → direct (drops context, infers from pinyin alone).
+#     # Lower values surface AI candidates earlier when context exists.
+#     min_input_length: 6
 #     context_window_size: 10
 #     debounce_ms: 200
 #     max_tokens: 64
