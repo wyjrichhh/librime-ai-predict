@@ -1,0 +1,14 @@
+/build/
+/.cache/
+
+# deps build artifacts (from `make deps`)
+/include/ctranslate2/
+/include/half_float/
+/include/nlohmann/
+/lib/
+/share/
+/deps/CTranslate2/build/
+
+compile_commands.json
+*.dylib
+*.so
