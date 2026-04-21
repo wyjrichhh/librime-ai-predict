@@ -139,6 +139,19 @@ void PredictionEngine::WorkerLoop() {
                   << ctx->input() << "')";
         continue;
       }
+      // Don't disturb the user mid-navigation. RefreshNonConfirmedComposition
+      // re-runs Compose() and resets selected_index to 0, which would yank
+      // the menu back to page 1 / candidate 1 if the user has already paged
+      // (=) or moved the highlight. In that case we keep the cache populated
+      // (so the next keystroke's PredictTranslator::Query will hit it) but
+      // skip the active refresh.
+      if (!ctx->composition().empty() &&
+          ctx->composition().back().selected_index > 0) {
+        LOG(INFO) << "PredictionEngine: skip refresh, user already navigated"
+                  << " (selected_index="
+                  << ctx->composition().back().selected_index << ")";
+        continue;
+      }
       // We can't just fire update_notifier: ConcreteEngine::Compose skips
       // segments whose status >= kGuess, so the existing menu would be
       // reused and PredictTranslator::Query would never be re-invoked.
