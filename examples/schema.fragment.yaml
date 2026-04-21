@@ -23,12 +23,15 @@
 # patch:
 #   schema_list:
 #     - schema: luna_pinyin
-#   menu/page_size: 9
+#   menu/page_size: 5
 #   # Append ai_predict to default.yaml's modules list (rime list-append syntax)
 #   'modules/@next': ai_predict
 #
 # ─── ~/Library/Rime/luna_pinyin.custom.yaml ──────────────────────────────────
 # patch:
+#   # zh-base-ct2-int8 仅适配简体；朙月拼音默认开关顺序为 @0 ascii @1 full_shape
+#   # @2 simplification —— states [ 漢字, 汉字 ]，reset: 1 表示默认「汉字」(简体)
+#   switches/@2/reset: 1
 #   engine/translators:
 #     - ai_predict_translator     # MUST be first
 #     - punct_translator

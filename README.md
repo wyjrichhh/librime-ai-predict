@@ -2,7 +2,15 @@
 
 Rime 插件：使用 **CTranslate2** 做 seq2seq 预测，异步推理并在结果就绪后通过刷新 composition / Context 属性让前端更新候选栏。
 
+![demo](docs/demo.gif)
+
 与官方 [rime/librime-predict](https://github.com/rime/librime-predict)（Trie 词表预测）不同，本仓库面向 **神经网络 / CT2 导出模型**，因此单独成库，命名为 **`librime-ai-predict`**。
+
+### 语言与简繁（重要）
+
+当前随插件分发的 **`zh-base-ct2-int8` 模型仅针对简体中文训练与优化**。若输入方案或用户词库以繁体为主、或关闭简繁转换，AI 联想质量可能明显下降，甚至出现与上下文不符的字形。
+
+**建议**：在所用拼音方案中**默认开启简体输出**（朙月拼音下为 `simplification` 开关的「汉字」态），与模型一致。示例见 [`examples/schema.fragment.yaml`](examples/schema.fragment.yaml) 中 `default.custom.yaml` / `luna_pinyin.custom.yaml` 片段。
 
 ## 端到端体验（推荐）：通过鼠须管 fork
 
