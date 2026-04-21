@@ -191,14 +191,12 @@ an<Translation> PredictTranslator::Query(const string& input,
   LOG(INFO) << "ai_predict_translator: built context"
             << " mode=" << (built->windowed ? "windowed" : "direct")
             << " window_text='" << built->window_text << "'"
-            << " last_punct='" << built->last_punct << "'"
             << " effective_prompt='" << built->effective_prompt << "'"
             << " cache_key='" << built->cache_key << "'";
 
   if (auto raw = prediction_->GetCachedResult(built->cache_key)) {
     if (!raw->empty()) {
-      const string display =
-          ExtractDisplayText(*raw, built->window_text, built->last_punct);
+      const string display = ExtractDisplayText(*raw);
       if (!display.empty()) {
         LOG(INFO) << "ai_predict_translator: cache HIT display='" << display << "'";
         PublishAITextProperty(engine_, display);

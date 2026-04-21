@@ -33,13 +33,6 @@ struct PredictionContext {
   string cache_key;
   /// Full line passed to CT2Backend::Predict (Chinese prefix + pinyin tags).
   string ct2_input;
-  /// Most recent committed punctuation (only set when the very last commit
-  /// record is of type "punct" or "thru"). When set, the model output is
-  /// stripped of this prefix on the display side -- the model often echoes a
-  /// connecting punctuation that the user just typed (e.g. user committed "，"
-  /// then typed pinyin and the suggestion comes back as "，你好"); without
-  /// this strip the candidate would visually duplicate the punctuation.
-  string last_punct;
   /// True when prediction was issued with a non-empty `window_text`
   /// (context-aware mode). False for context-free mode (pinyin alone, used
   /// only on cold start when no usable commit history exists).
@@ -65,12 +58,15 @@ class ContextBuilder {
                                                 const ContextBuilderOptions& opt);
 };
 
-/// Strip model prefix that duplicates committed context (windowed mode), then
-/// strip a leading `last_punct` if the model echoed the most recent committed
-/// punctuation. `last_punct` may be empty (no-op).
-string ExtractDisplayText(const string& model_output,
-                          const string& window_text_for_extract,
-                          const string& last_punct = string());
+/// Clean a raw model output for display in the candidate menu.
+///
+/// The CT2 model emits exactly the new suffix (it does NOT echo the window
+/// prefix and does NOT replay the user's just-committed punctuation), so the
+/// only postprocessing we need is to strip any punctuation the model itself
+/// produced -- candidates with trailing "。" / "！" / "（…）" feel noisy in
+/// the menu. If a future model changes its output convention, the place to
+/// reintroduce window-prefix stripping is here.
+string ExtractDisplayText(const string& model_output);
 
 }  // namespace predict
 }  // namespace rime
