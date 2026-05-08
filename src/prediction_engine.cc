@@ -166,12 +166,17 @@ void PredictionEngine::WorkerLoop() {
       // AI candidate, after PredictFilter) is fully built. Only NOW is it
       // safe to ask the frontend (e.g. Squirrel) to re-read the context.
       //
-      // We deliberately use a dedicated property here instead of relying on
-      // "ai_predict/text": the latter is set from inside
-      // AIPredictTranslator::Query (i.e. *during* Compose), so a frontend that
-      // refreshes on it would race with the still-building menu and observe
-      // an empty/torn state, then end up hiding the panel.
-      ctx->set_property("ai_predict/ready", cache_key);
+      // Reserved-key protocol from rime/squirrel#1124: "_refresh_ui" tells
+      // any frontend that supports the convention to re-pull the menu now
+      // that the async build is complete. Frontends that don't implement it
+      // (older Squirrel, weasel, etc.) silently ignore the property, so the
+      // plugin continues to work — just without the live refresh.
+      //
+      // We deliberately do NOT signal off "ai_predict/text": that one is set
+      // from inside AIPredictTranslator::Query (i.e. *during* Compose), so a
+      // frontend racing on it would observe an empty/torn menu mid-build and
+      // hide the panel.
+      ctx->set_property("_refresh_ui", "1");
     }
   }
 }

@@ -23,6 +23,17 @@ namespace {
 constexpr const char* kAITextProperty = "ai_predict/text";
 constexpr const char* kAICandidateType = "ai_predict";
 constexpr const char* kAICommentMarker = "AI";
+// Reserved-key protocol from rime/squirrel#1124. Frontends that opt in
+// will accent-colour the comment of the listed candidate indices.
+constexpr const char* kCommentHighlightProperty = "_comment_highlight";
+
+void PublishCommentHighlight(Engine* engine, const string& value) {
+  if (!engine || !engine->context()) return;
+  Context* ctx = engine->context();
+  if (ctx->get_property(kCommentHighlightProperty) != value) {
+    ctx->set_property(kCommentHighlightProperty, value);
+  }
+}
 
 /// Wraps an upstream translation, prefetches up to `search_range` candidates,
 /// then injects the AI prediction (read from the engine's context property)
@@ -57,6 +68,12 @@ class AIPredictFilteredTranslation : public Translation {
     set_exhausted(cursor_ >= reordered_.size() &&
                   (!upstream_ || upstream_->exhausted()));
   }
+
+  // -1 means we did not insert an AI-tagged row this round (either the AI
+  // text was empty, slot #1 already matched it so no relabelling happened,
+  // or upstream produced nothing). Read by PredictFilter::Apply to publish
+  // the "_comment_highlight" reserved property to the frontend.
+  int ai_inserted_index() const { return ai_inserted_index_; }
 
   bool Next() override {
     if (exhausted()) return false;
@@ -165,6 +182,7 @@ class AIPredictFilteredTranslation : public Translation {
     for (size_t i = 0; i < pos; ++i) reordered_.push_back(buf[i]);
     reordered_.push_back(ai_cand);
     for (size_t i = pos; i < buf.size(); ++i) reordered_.push_back(buf[i]);
+    ai_inserted_index_ = static_cast<int>(pos);
   }
 
   an<Translation> upstream_;
@@ -174,6 +192,7 @@ class AIPredictFilteredTranslation : public Translation {
 
   std::vector<an<Candidate>> reordered_;
   size_t cursor_ = 0;
+  int ai_inserted_index_ = -1;
 };
 
 }  // namespace
@@ -202,10 +221,20 @@ an<Translation> PredictFilter::Apply(an<Translation> translation,
   }
   string ai_text = engine_->context()->get_property(kAITextProperty);
   if (ai_text.empty()) {
+    // No AI in flight this Compose; clear any stale highlight from the
+    // previous frame so the frontend doesn't keep colouring a row that no
+    // longer carries AI semantics.
+    PublishCommentHighlight(engine_, "");
     return translation;
   }
-  return New<AIPredictFilteredTranslation>(std::move(translation), ai_text,
-                                           target_index_, search_range_);
+  auto wrapped = New<AIPredictFilteredTranslation>(
+      std::move(translation), ai_text, target_index_, search_range_);
+  // Publish the index where the AI row landed (or empty if none was
+  // inserted, e.g. dedup against slot #1). Synchronous on Compose() so the
+  // frontend has the index before it observes the new menu.
+  int idx = wrapped->ai_inserted_index();
+  PublishCommentHighlight(engine_, idx >= 0 ? std::to_string(idx) : "");
+  return wrapped;
 }
 
 }  // namespace predict
