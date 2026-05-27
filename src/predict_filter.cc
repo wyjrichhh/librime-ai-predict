@@ -15,6 +15,8 @@
 #include <rime/schema.h>
 #include <rime/translation.h>
 
+#include "frontend_protocol.h"
+
 namespace rime {
 namespace predict {
 
@@ -23,15 +25,17 @@ namespace {
 constexpr const char* kAITextProperty = "ai_predict/text";
 constexpr const char* kAICandidateType = "ai_predict";
 constexpr const char* kAICommentMarker = "AI";
-// Reserved-key protocol from rime/squirrel#1124. Frontends that opt in
-// will accent-colour the comment of the listed candidate indices.
-constexpr const char* kCommentHighlightProperty = "_comment_highlight";
 
-void PublishCommentHighlight(Engine* engine, const string& value) {
+// Frontend protocol: publish the index of the AI row so opt-in frontends
+// accent-colour its comment. See rime/squirrel#1124. Idempotent: skip the
+// set_property when the value hasn't changed to avoid spurious property
+// notifications on every Compose().
+void PublishCommentHighlight(Engine* engine, int index) {
   if (!engine || !engine->context()) return;
   Context* ctx = engine->context();
-  if (ctx->get_property(kCommentHighlightProperty) != value) {
-    ctx->set_property(kCommentHighlightProperty, value);
+  const std::string value = protocol::MakeCommentHighlightPayload(index);
+  if (ctx->get_property(protocol::kCommentHighlight) != value) {
+    ctx->set_property(protocol::kCommentHighlight, value);
   }
 }
 
@@ -71,8 +75,8 @@ class AIPredictFilteredTranslation : public Translation {
 
   // -1 means we did not insert an AI-tagged row this round (either the AI
   // text was empty, slot #1 already matched it so no relabelling happened,
-  // or upstream produced nothing). Read by PredictFilter::Apply to publish
-  // the "_comment_highlight" reserved property to the frontend.
+  // or upstream produced nothing). PredictFilter::Apply forwards this to
+  // PublishCommentHighlight, which encodes it as the wire payload.
   int ai_inserted_index() const { return ai_inserted_index_; }
 
   bool Next() override {
@@ -224,16 +228,15 @@ an<Translation> PredictFilter::Apply(an<Translation> translation,
     // No AI in flight this Compose; clear any stale highlight from the
     // previous frame so the frontend doesn't keep colouring a row that no
     // longer carries AI semantics.
-    PublishCommentHighlight(engine_, "");
+    PublishCommentHighlight(engine_, -1);
     return translation;
   }
   auto wrapped = New<AIPredictFilteredTranslation>(
       std::move(translation), ai_text, target_index_, search_range_);
-  // Publish the index where the AI row landed (or empty if none was
-  // inserted, e.g. dedup against slot #1). Synchronous on Compose() so the
-  // frontend has the index before it observes the new menu.
-  int idx = wrapped->ai_inserted_index();
-  PublishCommentHighlight(engine_, idx >= 0 ? std::to_string(idx) : "");
+  // Publish the index where the AI row landed (or -1 if none was inserted,
+  // e.g. dedup against slot #1). Synchronous on Compose() so the frontend
+  // has the index before it observes the new menu.
+  PublishCommentHighlight(engine_, wrapped->ai_inserted_index());
   return wrapped;
 }
 

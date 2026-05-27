@@ -11,6 +11,8 @@
 #include <rime/context.h>
 #include <rime/engine.h>
 
+#include "frontend_protocol.h"
+
 namespace rime {
 namespace predict {
 
@@ -172,11 +174,18 @@ void PredictionEngine::WorkerLoop() {
       // (older Squirrel, weasel, etc.) silently ignore the property, so the
       // plugin continues to work — just without the live refresh.
       //
+      // The payload carries `source=ai_predict&kind=full` so frontends and
+      // log readers can attribute the refresh to this plugin and (later)
+      // route per-source. Frontends that ignore the body still rimeUpdate(),
+      // so the body is purely informational.
+      //
       // We deliberately do NOT signal off "ai_predict/text": that one is set
       // from inside AIPredictTranslator::Query (i.e. *during* Compose), so a
       // frontend racing on it would observe an empty/torn menu mid-build and
       // hide the panel.
-      ctx->set_property("_refresh_ui", "1");
+      ctx->set_property(
+          protocol::kRefreshUI,
+          protocol::MakeRefreshUIPayload(protocol::kPluginCodename));
     }
   }
 }
