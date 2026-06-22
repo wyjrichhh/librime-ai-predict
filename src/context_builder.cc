@@ -22,15 +22,51 @@ string StripSpaces(const string& s) {
   return out;
 }
 
-bool IsPunctChar(const string& ch) {
-  static const char* puncts[] = {
-      "\xe3\x80\x82", "\xef\xbc\x8c", "\xef\xbc\x81", "\xef\xbc\x9f",
-      "\xef\xbc\x9b", "\xef\xbc\x9a", "\xe3\x80\x81", "\xe2\x80\xa6",
-      ".", ",", "!", "?", ";", ":"};
-  for (const auto* p : puncts) {
-    if (ch == p)
-      return true;
+// True iff `s` is a usable pinyin prompt: at least one lowercase letter and
+// nothing but [a-z] plus the syllable-separator apostrophe (e.g. "xi'an").
+// librime hands us a fresh segment for every keystroke, including punctuation
+// (",", ".", "?"), ASCII symbols ("+", "/", "\\", "_"), and literal uppercase
+// acronyms ("SSO"). None are pinyin; the CT2 model can only echo them back as
+// garbage (window="...日志" + prompt="," -> candidate ","), so we reject them
+// before they reach the trigger policy.
+bool IsPinyinPrompt(const string& s) {
+  bool has_letter = false;
+  for (char c : s) {
+    if (c >= 'a' && c <= 'z') {
+      has_letter = true;
+    } else if (c != '\'') {
+      return false;
+    }
   }
+  return has_letter;
+}
+
+// True iff `cp` is a punctuation or symbol code point the model may emit but
+// that must never appear in a candidate. We match by Unicode RANGE rather than
+// an enumerated denylist: the CT2 model can emit any CJK punctuation it has
+// seen in training (parentheses, brackets, quotes, dashes, ...), and a hand
+// listed set inevitably misses some -- e.g. it previously let the fullwidth
+// parenthesis `）`(U+FF09) leak into candidates like `编译）`. Covering the
+// whole block keeps new symbols (「」【】《》 etc.) handled for free.
+bool IsPunctCodepoint(uint32_t cp) {
+  // ASCII punctuation we care about (keep [a-zA-Z0-9] and apostrophe intact,
+  // those are handled by the gaps between these ranges).
+  if (cp == '.' || cp == ',' || cp == '!' || cp == '?' || cp == ';' ||
+      cp == ':')
+    return true;
+  // CJK Symbols and Punctuation: 。、《》「」『』【】〈〉… etc.
+  if (cp >= 0x3000 && cp <= 0x303F)
+    return true;
+  // Fullwidth ASCII forms: ！＂＃…（）…：；？ etc. (U+FF01..U+FF0F,
+  // U+FF1A..U+FF20, U+FF3B..U+FF40, U+FF5B..U+FF65). Covers fullwidth
+  // parentheses （）, comma ，, colon ：, semicolon ；, ! ? and friends.
+  if ((cp >= 0xFF01 && cp <= 0xFF0F) || (cp >= 0xFF1A && cp <= 0xFF20) ||
+      (cp >= 0xFF3B && cp <= 0xFF40) || (cp >= 0xFF5B && cp <= 0xFF65))
+    return true;
+  // General Punctuation: “ ” ‘ ’ … — – etc. (U+2010..U+205E covers dashes,
+  // quotation marks, the horizontal ellipsis U+2026).
+  if (cp >= 0x2010 && cp <= 0x205E)
+    return true;
   return false;
 }
 
@@ -39,10 +75,9 @@ string StripAllPunctuation(const string& text) {
   auto it = text.begin();
   while (it != text.end()) {
     auto start = it;
-    utf8::next(it, text.end());
-    string ch(start, it);
-    if (!IsPunctChar(ch))
-      result += ch;
+    uint32_t cp = utf8::next(it, text.end());
+    if (!IsPunctCodepoint(cp))
+      result.append(start, it);
   }
   return result;
 }
@@ -103,6 +138,12 @@ std::optional<PredictionContext> ContextBuilder::Build(
     const ContextBuilderOptions& opt) {
   string prompt = StripSpaces(raw_input);
   if (prompt.empty()) {
+    return std::nullopt;
+  }
+  // Reject non-pinyin segments (lone punctuation, ASCII symbols, uppercase
+  // acronyms). Without this, a committed-context window + a single "," prompt
+  // reaches the model and comes back as a junk "," candidate.
+  if (!IsPinyinPrompt(prompt)) {
     return std::nullopt;
   }
   int threshold = opt.min_effective_length > 0 ? opt.min_effective_length : 12;

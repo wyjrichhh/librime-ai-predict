@@ -45,6 +45,11 @@ inline constexpr const char* kRefreshUI = "_refresh_ui";
 // the active color scheme's accent_text_color.
 inline constexpr const char* kCommentHighlight = "_comment_highlight";
 
+// The frontend table also reserves "_comment_warning" (render comment
+// with warning_text_color). This plugin never flags a prediction as a
+// warning, so the key is intentionally not declared here -- add a
+// constant + builder only once a call site actually emits it.
+
 // === Plugin identity =======================================================
 
 // Used as the `source` field in event payloads so frontends (and log
@@ -70,11 +75,12 @@ std::string MakeRefreshUIPayload(const std::string& source,
 // index. Returns "" when index < 0 (means "no row to highlight this
 // frame" -- frontends clear the cache).
 //
-// Encoding: bare-list shorthand ("0", "0,2"). The new protocol
-// normalises this to { indices: "0,2" }, and the form is also accepted
-// by frontends that hard-code the bare-list shape (lotem 2026-05-06).
-// Keeping a single integer (vs. the long-form "indices=0") shaves bytes
-// on the IPC path that runs every Compose().
+// Encoding: bare-list shorthand ("0", "0,2"). The frontend protocol
+// normalises this into its neutral `value` field ({ value: "0,2" }),
+// and the bare-list form is also accepted directly by frontends that
+// read the shorthand (lotem 2026-05-06). Keeping a single integer (vs.
+// the long-form "value=0") shaves bytes on the IPC path that runs every
+// Compose().
 std::string MakeCommentHighlightPayload(int index);
 
 }  // namespace protocol

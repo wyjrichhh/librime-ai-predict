@@ -12,18 +12,22 @@ Rime 插件：使用 **CTranslate2** 做 seq2seq 预测，异步推理并在结�
 
 **建议**：在所用拼音方案中**默认开启简体输出**（朙月拼音下为 `simplification` 开关的「汉字」态），与模型一致。示例见 [`examples/schema.fragment.yaml`](examples/schema.fragment.yaml) 中 `default.custom.yaml` / `luna_pinyin.custom.yaml` 片段。
 
-## 端到端体验（推荐）：通过鼠须管 fork
+## 端到端体验（推荐）：通过鼠须管 master
 
-本仓库只是一个 librime 插件，不能单独运行。要实际"输入拼音→看到 AI 候选"，必须配合一个**会处理 `_refresh_ui` / `_comment_highlight` 等保留 property key**（参见 [rime/squirrel#1124](https://github.com/rime/squirrel/issues/1124)）的前端。我们提供了一个鼠须管 fork（`feat/ai-inference` 分支），自带必要的前端增强。
+本仓库只是一个 librime 插件，不能单独运行。要实际"输入拼音→看到 AI 候选"，必须配合一个**会处理 `_refresh_ui` / `_comment_highlight` 等保留 property key**（参见 [rime/squirrel#1124](https://github.com/rime/squirrel/issues/1124)）的前端。
 
-完整端到端流程（含前置依赖、详细解释、常见问题）详见：**[wyjrichhh/squirrel — feat/ai-inference 分支 README](https://github.com/wyjrichhh/squirrel/tree/feat/ai-inference)**
+> **更新（2026-06）**：该保留 property key 协议已通过 [rime/squirrel#1143](https://github.com/rime/squirrel/pull/1143) 合并进**上游鼠须管 master**（新增 `sources/ReservedProperty.swift`），不再需要任何 fork。协议是**插件无关**的通用机制，stock 鼠须管即可驱动本插件的异步刷新与 AI 候选配色。
+>
+> 注意：截至 v1.1.2 该 PR **尚未进 release**，所以现在需从 master 自行编译；待下一个发版（> 1.1.2）后，用现成安装包即可。
+
+完整端到端流程（含前置依赖、详细解释、常见问题）详见上游 [rime/squirrel](https://github.com/rime/squirrel) 的构建文档。
 
 核心命令简版（在空目录 `~/work/` 下从零开始）：
 
 ```bash
 # 0. 前置：macOS 13+, Xcode 14+, brew install cmake boost
 cd ~/work
-git clone --recursive -b feat/ai-inference https://github.com/wyjrichhh/squirrel.git
+git clone --recursive https://github.com/rime/squirrel.git   # master 已含 #1143
 cd squirrel
 
 # 1. 注册插件（squirrel Xcode 工程要求 lua/octagram/predict 也必须在场）
@@ -46,13 +50,13 @@ make deps && make && sudo make install
 # 5. 鼠须管菜单 → 重新部署
 ```
 
-> 上面命令逐行可复现，详细解释、环境变量、常见问题请看 squirrel fork README。
+> 上面命令逐行可复现，详细解释、环境变量、常见问题请看上游 squirrel 构建文档。
 
 ## 进阶：作为通用 librime 插件独立编译
 
-如果你不想用鼠须管 fork，只想把本插件**作为一个 librime 插件库**单独编进自己的 librime（例如要嵌入到其他前端、做 CI 验证、或只关心 librime 侧的输出）：
+如果你不想从源码构建整个鼠须管，只想把本插件**作为一个 librime 插件库**单独编进自己的 librime（例如要嵌入到其他前端、做 CI 验证、或只关心 librime 侧的输出）：
 
-> 注意：仅独立编译 librime 是**不能直接体验输入法效果**的——你还需要一个能监听保留 property key（`_refresh_ui` 等）的前端。鼠须管原版（不打本 fork 的补丁）也能输入，但 AI 候选不会自动刷新、AI 标识不会被特殊配色。
+> 注意：仅独立编译 librime 是**不能直接体验输入法效果**的——你还需要一个能监听保留 property key（`_refresh_ui` 等）的前端。任何未实现该协议的前端也能输入，但 AI 候选不会自动刷新、AI 标识不会被特殊配色。stock 鼠须管 master（含 [#1143](https://github.com/rime/squirrel/pull/1143)）已实现该协议。
 
 **前提**：macOS、Xcode CLT、`brew install cmake boost`、可访问 GitHub。
 
@@ -137,7 +141,7 @@ ai_predict:
 | Filter 组件名 | `ai_predict_filter`（推荐放在 `engine/filters` 末尾） |
 | 方案里配置段 | `ai_predict`（见 `examples/schema.fragment.yaml`） |
 | Context 属性（plugin 内部） | `ai_predict/text`：当前 AI 展示文本，由 Translator 写、Filter 读 |
-| Context 属性（前端协议） | `_comment_highlight`、`_refresh_ui`（[rime/squirrel#1124](https://github.com/rime/squirrel/issues/1124) 约定的保留 key），由 Filter / PredictionEngine 写、前端读 |
+| Context 属性（前端协议） | `_comment_highlight`、`_refresh_ui`（[rime/squirrel#1124](https://github.com/rime/squirrel/issues/1124) 约定、由 [#1143](https://github.com/rime/squirrel/pull/1143) 在上游实现的保留 key），由 Filter / PredictionEngine 写、前端读。前端另保留 `_comment_warning`（warning 配色），本插件不发出 |
 
 ### 常用配置项
 
@@ -171,10 +175,22 @@ PredictTranslator   ──┐                          comment="AI"
 ```
 
 - `PredictTranslator`：Rime `Translator`，调度推理并写入 `ai_predict/text`（plugin 内部 API）。
-- `PredictFilter`：Rime `Filter`，重排候选使 AI 建议落在指定位并去重；同步发布 `_comment_highlight=<idx>` 让前端高亮该索引候选的 comment。
-- `PredictionEngine`：后台线程、防抖、缓存；推理完成后 `RefreshNonConfirmedComposition` 并发布 `_refresh_ui="1"` 通知前端刷新。
-- `ContextBuilder`：从 `CommitHistory` 构造上下文（跳过 `punct` / `thru` 类型；`ai_predict` 一旦被用户主动选中并提交，与普通汉字 commit 等价，参与上下文）。
+- `PredictFilter`：Rime `Filter`，重排候选使 AI 建议落在指定位并去重；同步发布 `_comment_highlight`（裸索引列表，如 `0` / `0,2`）让前端高亮这些索引候选的 comment。
+- `PredictionEngine`：后台线程、防抖、缓存；推理完成后 `RefreshNonConfirmedComposition` 并发布 `_refresh_ui`（query string，如 `source=ai_predict&kind=full`）通知前端刷新候选菜单。
+- `ContextBuilder`：从 `CommitHistory` 构造上下文（跳过 `punct` / `thru` / `raw` 类型；`ai_predict` 一旦被用户主动选中并提交，与普通汉字 commit 等价，参与上下文）。`raw` 是某段无候选、用户直接提交原始拼音字母时 librime 记的类型，不能当中文上下文回放。
 - `InferenceBackend` / `CT2Backend`：推理后端抽象与 CTranslate2 实现。
+
+### 前端协议 payload 格式
+
+保留 key 的 value 由 `src/frontend_protocol.{h,cc}` 集中生成，编码与上游 `sources/ReservedProperty.swift` 的解析一致：
+
+| Key | 写入方 | 编码 | 示例 |
+|-----|--------|------|------|
+| `_refresh_ui` | PredictionEngine | URL query string（`source` 必有，`kind` 默认 `full`） | `source=ai_predict&kind=full` |
+| `_comment_highlight` | PredictFilter | 裸索引列表（前端归一化到 `value` 字段；空串表示本帧无高亮） | `1` 或 `0,2` |
+| `_comment_warning` | （不发出） | 同上，warning 配色 | — |
+
+> 前端在「仅 caret / 选择变化」的更新里**不会清掉**这些保留态评论（`rimeUpdate(clearReservedComments: false)`），只有候选集真正重建时才重算，避免高亮在移动光标时闪烁。
 
 ### Translator 与 Filter 的分工
 
@@ -194,7 +210,7 @@ PredictTranslator   ──┐                          comment="AI"
 | `download_model.sh` 下载失败 / 404 | 网络或代理问题；或 Release 资产名变化。可访问 [Releases 页](https://github.com/wyjrichhh/librime-ai-predict/releases) 手动下载，或用 `MODEL_URL=...` 指向镜像 |
 | 插件未加载 / 无 `ai_predict` 组件 | `default.yaml` 或 `default.custom.yaml` 的 `modules` 是否包含 `ai_predict`；部署后是否重载 |
 | 报错找不到模型 | `ai_predict/model_path` 相对路径是否相对于 `~/Library/Rime`（`user_data_dir`）；目录下是否有 `shared_vocabulary.json` |
-| 无 AI 候选或界面不刷新 | 前端是否实现保留 property key 协议（`_refresh_ui`、`_comment_highlight`）；鼠须管需打 `feat/ai-inference` 分支补丁。详见 [rime/squirrel#1124](https://github.com/rime/squirrel/issues/1124) |
+| 无 AI 候选或界面不刷新 | 前端是否实现保留 property key 协议（`_refresh_ui`、`_comment_highlight`）；stock 鼠须管需用含 [#1143](https://github.com/rime/squirrel/pull/1143) 的 master（v1.1.2 release 尚未包含）。详见 [rime/squirrel#1124](https://github.com/rime/squirrel/issues/1124) |
 | 日志找不到 | 插件使用独立 glog 实例；宿主可设置 `RIME_LOG_DIR`（如鼠须管 `~/Library/Logs/Squirrel`）。查找 `*.ai_predict.*.log.INFO` |
 | `make deps` 子模块失败 | 配置代理后重试；或手动 `git submodule update --init deps/CTranslate2` |
 | 编译找不到 nlohmann | 先执行插件目录 `make deps`，确保 `include/nlohmann/json.hpp` 存在 |
