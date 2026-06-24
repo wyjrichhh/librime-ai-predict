@@ -82,12 +82,27 @@ string StripAllPunctuation(const string& text) {
   return result;
 }
 
+// True iff `text` contains at least one CJK Unified Ideograph (U+4E00..U+9FFF).
+// Used to decide whether a window carries real Chinese context: a window made
+// of nothing but punctuation (e.g. a lone "。" left after the model's prior
+// output was committed) must NOT count as context, or it would bypass the cold
+// start `min_input_length` gate and spawn low-value inferences.
+bool ContainsHan(const string& text) {
+  auto it = text.begin();
+  while (it != text.end()) {
+    uint32_t cp = utf8::next(it, text.end());
+    if (cp >= 0x4E00 && cp <= 0x9FFF)
+      return true;
+  }
+  return false;
+}
+
 /// Walk commit history (most recent first, capped at `max_records`) and
 /// reconstruct the Chinese context window.
 ///
 /// Skip policy (denylist):
-///   - "punct" / "thru" records never enter `window_text` (not semantic
-///     Chinese context).
+///   - "thru" records never enter `window_text` (raw ASCII keystrokes, not
+///     semantic Chinese context).
 ///   - "raw" records never enter `window_text` either. librime emits "raw"
 ///     when a segment has no translation candidate and the user commits the
 ///     literal ASCII (e.g. typed `quickstart` then hit Return), or when a
@@ -96,6 +111,15 @@ string StripAllPunctuation(const string& text) {
 ///     replay it as a prefix (e.g. window="quickstart" + pinyin="baoliu" →
 ///     model output "QUICKSTART保留"), which then leaks into the candidate
 ///     verbatim.
+///   - "punct" records ARE now kept. The CT2 model is trained on punctuated
+///     text and predicts MORE accurately with sentence structure present, so
+///     feeding back committed punctuation (。，！？ …) is a positive signal,
+///     not noise. The reason punct was originally dropped was a display
+///     concern -- the model would sometimes echo context punctuation into a
+///     candidate -- and that is now handled independently at the display layer
+///     by StripAllPunctuation (see ExtractDisplayText), which strips
+///     punctuation from any position in a candidate. So punctuation can safely
+///     enter the window for inference while never surfacing in a candidate.
 ///   - Everything else, including our own previously committed "ai_predict"
 ///     candidates, is treated as ordinary user-confirmed content. Rationale:
 ///     committing an AI suggestion requires an explicit user keypress, so by
@@ -114,7 +138,7 @@ void BuildWindowContext(Context* ctx,
   for (auto it = history.rbegin();
        it != history.rend() && collected < static_cast<size_t>(max_records);
        ++it) {
-    if (it->type == "punct" || it->type == "thru" || it->type == "raw")
+    if (it->type == "thru" || it->type == "raw")
       continue;
     if (it->text.empty())
       continue;
@@ -126,7 +150,9 @@ void BuildWindowContext(Context* ctx,
   string& out = *window_text_out;
   out.clear();
   for (const auto& text : recent_commits) {
-    out += text;  // No separator: model expects continuous Chinese text.
+    // No separator: committed text (now including its punctuation) is
+    // concatenated as-is; the punctuation itself supplies sentence structure.
+    out += text;
   }
 }
 
@@ -155,15 +181,21 @@ std::optional<PredictionContext> ContextBuilder::Build(
   }
 
   // Trigger policy (context-first):
-  //   - If `window_text` is non-empty, ALWAYS feed it to the model regardless
-  //     of prompt length -- the committed Hanzi prefix is the strongest signal
-  //     we have, and dropping it for "long" prompts (the previous behavior)
-  //     made mid-length inputs like `chuangkou + 现在在什么情况下会` lose all
-  //     coherence and produce dictionary-style noise like `（创客）`.
-  //   - If `window_text` is empty (cold start, just after BackSpace/Return,
-  //     or only punct/thru/raw in history), require `prompt.length >=
-  //     threshold` so the model has enough to chew on; otherwise skip.
-  bool has_context = !window_text.empty();
+  //   - If `window_text` carries real Chinese context, ALWAYS feed it to the
+  //     model regardless of prompt length -- the committed Hanzi prefix is the
+  //     strongest signal we have, and dropping it for "long" prompts (the
+  //     previous behavior) made mid-length inputs like `chuangkou + 现在在什么
+  //     情况下会` lose all coherence and produce dictionary-style noise like
+  //     `（创客）`.
+  //   - If there is no real context (cold start, just after BackSpace/Return,
+  //     or a window that is only punctuation/thru/raw), require `prompt.length
+  //     >= threshold` so the model has enough to chew on; otherwise skip.
+  //
+  // "Real context" means the window contains at least one Hanzi, not merely
+  // that it is non-empty: now that punct records enter the window, a window of
+  // only "。" must not bypass the cold-start threshold and spawn a low-value
+  // inference off a lone punctuation mark.
+  bool has_context = ContainsHan(window_text);
   if (!has_context && static_cast<int>(prompt.length()) < threshold) {
     return std::nullopt;
   }

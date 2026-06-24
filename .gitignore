@@ -12,3 +12,12 @@
 compile_commands.json
 *.dylib
 *.so
+
+# 本地评估工具与产物(含真实主机名/输入数据,不公开)——见决策:脚本和数据都不开源
+/scripts/__pycache__/
+/scripts/analyze_predictions.py
+/scripts/prediction_eval_history.jsonl
+/scripts/baseline_frozen.json
+/scripts/eval_comparison.log
+/scripts/eval_cron.out
+/scripts/.eval_boundary

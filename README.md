@@ -177,7 +177,7 @@ PredictTranslator   ──┐                          comment="AI"
 - `PredictTranslator`：Rime `Translator`，调度推理并写入 `ai_predict/text`（plugin 内部 API）。
 - `PredictFilter`：Rime `Filter`，重排候选使 AI 建议落在指定位并去重；同步发布 `_comment_highlight`（裸索引列表，如 `0` / `0,2`）让前端高亮这些索引候选的 comment。
 - `PredictionEngine`：后台线程、防抖、缓存；推理完成后 `RefreshNonConfirmedComposition` 并发布 `_refresh_ui`（query string，如 `source=ai_predict&kind=full`）通知前端刷新候选菜单。
-- `ContextBuilder`：从 `CommitHistory` 构造上下文（跳过 `punct` / `thru` / `raw` 类型；`ai_predict` 一旦被用户主动选中并提交，与普通汉字 commit 等价，参与上下文）。`raw` 是某段无候选、用户直接提交原始拼音字母时 librime 记的类型，不能当中文上下文回放。
+- `ContextBuilder`：从 `CommitHistory` 构造上下文（跳过 `thru` / `raw` 类型；**保留 `punct`**——模型带标点推理更准，标点作为句子结构信号喂入 `window_text`，候选侧由 `StripAllPunctuation` 剥离回显；`ai_predict` 一旦被用户主动选中并提交，与普通汉字 commit 等价，参与上下文）。`raw` 是某段无候选、用户直接提交原始拼音字母时 librime 记的类型，不能当中文上下文回放。`has_context` 以「窗口含汉字」判定，纯标点窗口不绕过冷启动阈值。
 - `InferenceBackend` / `CT2Backend`：推理后端抽象与 CTranslate2 实现。
 
 ### 前端协议 payload 格式
