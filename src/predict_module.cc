@@ -17,18 +17,18 @@
 
 namespace {
 
-// librime 的所有外部插件（包括官方 librime-lua）都会与 librime 主 dylib
-// 各自静态链接一份 glog，从而在进程中存在两个互不可见的 glog 实例。这是
-// librime 的设计选择：维护者明确不接受改 librime 主项目的链接方式
-// (参见 rime/librime#983 与 #984)，并由原作者 lotem 给出官方建议——
-// 「兩份 glog 實例的話肯定得要輸出到不同文件了」「需要嘗試不同的解法」。
+// Every external librime plugin statically links its own copy of glog, so the
+// process holds two glog instances that can't see each other. This is by
+// design -- the librime maintainers won't change the main project's linking
+// (rime/librime#983, #984), and the official guidance is that the two
+// instances must log to different files.
 //
-// 因此插件必须自行初始化「自己这一份」glog 实例，否则插件代码里的 LOG
-// 写入的是一个未初始化的 sink，全部丢失。我们的约定是：
-//   - log_dir 通过环境变量 RIME_LOG_DIR / GOOGLE_LOG_DIR 由前端传入；
-//   - program 名取主进程 deployer.app_name 加 ".ai_predict" 后缀，
-//     从而生成 "rime.<frontend>.ai_predict.*.log.INFO" 之类的文件，
-//     与主进程日志 "rime.<frontend>.*.log.INFO" 物理隔离、按目录并列。
+// So the plugin must initialize ITS OWN glog instance, or its LOG calls write
+// to an uninitialized sink and vanish. Our convention:
+//   - log_dir comes from RIME_LOG_DIR / GOOGLE_LOG_DIR (set by the frontend);
+//   - program name is the host's deployer.app_name + ".ai_predict", producing
+//     "rime.<frontend>.ai_predict.*.log.INFO" -- physically separate from the
+//     main process's "rime.<frontend>.*.log.INFO".
 void EnsurePluginLoggingInitialized() {
   if (google::IsGoogleLoggingInitialized()) {
     return;
@@ -44,7 +44,7 @@ void EnsurePluginLoggingInitialized() {
     }
   }
 
-  // app_name 必须长存（glog 内部按指针保存），故用静态存储。
+  // app_name must outlive this call (glog keeps it by pointer), hence static.
   static std::string app_name = [] {
     const auto& host = rime::Service::instance().deployer().app_name;
     return host.empty() ? std::string("rime.ai_predict")

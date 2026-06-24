@@ -26,10 +26,9 @@ constexpr const char* kAITextProperty = "ai_predict/text";
 constexpr const char* kAICandidateType = "ai_predict";
 constexpr const char* kAICommentMarker = "AI";
 
-// Frontend protocol: publish the index of the AI row so opt-in frontends
-// accent-colour its comment. See rime/squirrel#1124. Idempotent: skip the
-// set_property when the value hasn't changed to avoid spurious property
-// notifications on every Compose().
+// Publish the index of the AI row so opt-in frontends accent-colour its
+// comment (see frontend_protocol.h). Idempotent: skip the set_property when
+// unchanged, to avoid a spurious notification on every Compose().
 void PublishCommentHighlight(Engine* engine, int index) {
   if (!engine || !engine->context()) return;
   Context* ctx = engine->context();
@@ -40,24 +39,15 @@ void PublishCommentHighlight(Engine* engine, int index) {
 }
 
 /// Wraps an upstream translation, prefetches up to `search_range` candidates,
-/// then injects the AI prediction (read from the engine's context property)
-/// at `target_index`.
+/// then places the AI prediction (read from the engine's context property) at
+/// `target_index`. Placement policy:
+/// 1. AI text already at slot #1 → do nothing (the top slot already carries it;
+///    a relabel or duplicate row would just be noise).
+/// 2. AI text matches a candidate further down → promote that one (no dup row).
+/// 3. AI text is novel → insert a fresh candidate.
 ///
-/// Dedup / placement policy:
-/// 1. If slot #1 already shows the AI text → do nothing (no relabel, no
-///    second row). The most prominent slot already carries the suggestion;
-///    forcing an "AI"-tagged duplicate further down or relabelling slot #1
-///    would just be visual noise.
-/// 2. Else if the AI text matches a candidate further down (slot #2+) → wrap
-///    that existing candidate with a ShadowCandidate (preserves type/preedit/
-///    quality, only overrides comment to "AI") and PROMOTE it to
-///    target_index. No duplicate row. The user accepts a position jump but
-///    never sees the same text twice.
-/// 3. Else (AI text is novel) → insert a fresh SimpleCandidate at
-///    target_index.
-///
-/// Any AI-typed candidates emitted upstream by PredictTranslator are stripped
-/// up front, so we are the single source of truth for the AI row.
+/// AI-typed candidates emitted upstream by PredictTranslator are stripped up
+/// front, so this filter is the single source of truth for the AI row.
 class AIPredictFilteredTranslation : public Translation {
  public:
   AIPredictFilteredTranslation(an<Translation> upstream,
@@ -123,10 +113,8 @@ class AIPredictFilteredTranslation : public Translation {
       return;
     }
 
-    // 1. Drop any AI-typed candidates injected by PredictTranslator. We are
-    //    the single source of truth for the AI row in the menu; whether we
-    //    end up emitting one or not, we don't want a duplicate from the
-    //    translator leaking through.
+    // We are the single source of truth for the AI row, so drop any AI-typed
+    // candidates the translator emitted before deciding our own placement.
     auto first_ai = std::stable_partition(
         buf.begin(), buf.end(), [](const an<Candidate>& c) {
           return !c || c->type() != kAICandidateType;
@@ -134,15 +122,11 @@ class AIPredictFilteredTranslation : public Translation {
     buf.erase(first_ai, buf.end());
 
     if (buf.empty()) {
-      // Upstream produced nothing; we have no segment range to anchor an AI
-      // candidate (start==end==0 would be malformed). Bail out.
+      // No upstream candidate means no segment range to anchor an AI candidate.
       reordered_ = std::move(buf);
       return;
     }
 
-    // 2. Slot #1 dedup: if the most prominent candidate already matches the
-    //    AI text, leave the menu untouched. Relabelling the top row or
-    //    surfacing an AI-tagged copy below would be pure noise.
     if (buf.front() && buf.front()->text() == ai_text_) {
       LOG(INFO) << "ai_predict_filter: dedup -- AI text '" << ai_text_
                 << "' already at slot #1; leaving candidate list unchanged";
@@ -150,10 +134,8 @@ class AIPredictFilteredTranslation : public Translation {
       return;
     }
 
-    // 3. Look for a duplicate in the rest of the prefetched window. If found
-    //    we PROMOTE it (wrapped in ShadowCandidate so type/preedit/quality
-    //    are preserved and only comment is overridden to "AI") to
-    //    target_index_, instead of inserting a second copy.
+    // Promote an existing match (wrapped so type/preedit/quality survive and
+    // only the comment changes) rather than inserting a second copy.
     an<Candidate> ai_cand;
     auto dup = std::find_if(buf.begin() + 1, buf.end(),
                             [this](const an<Candidate>& c) {

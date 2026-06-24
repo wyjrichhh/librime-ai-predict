@@ -19,34 +19,27 @@ class Engine;
 namespace predict {
 
 struct PredictionContext {
-  /// Pure raw pinyin currently being composed (spaces stripped). Used both as
-  /// the model's `<pinyin_start>...</pinyin_start>` payload and, in the
-  /// PredictionEngine, as the key for "did the user's composition still match
-  /// the request we sent" comparisons.
+  /// Pure pinyin being composed (spaces stripped). Doubles as the key for the
+  /// engine's "does the composition still match the request we sent" check.
   string effective_prompt;
-  /// Reconstructed Chinese context from commit history (most recent N commits
-  /// concatenated, oldest first). Empty when no usable context exists.
+  /// Chinese context reconstructed from recent commit history. Empty when none.
   string window_text;
-  /// Cache key for the prediction result. Combines `window_text` and
-  /// `effective_prompt` so that the same pinyin under different upstream
-  /// contexts produces distinct cache entries (no cross-context pollution).
+  /// Result cache key. Combines window_text + effective_prompt so the same
+  /// pinyin under different contexts can't collide.
   string cache_key;
-  /// Full line passed to CT2Backend::Predict (Chinese prefix + pinyin tags).
+  /// Full line passed to the backend (Chinese prefix + pinyin tags).
   string ct2_input;
-  /// True when prediction was issued with a non-empty `window_text`
-  /// (context-aware mode). False for context-free mode (pinyin alone, used
-  /// only on cold start when no usable commit history exists).
+  /// True when issued with a non-empty window_text (context-aware mode); false
+  /// for context-free cold start.
   bool windowed = false;
 };
 
 struct ContextBuilderOptions {
-  /// Minimum prompt length (bytes) required to trigger prediction WHEN there
-  /// is no usable Chinese context. With context, prediction triggers on any
-  /// non-empty prompt -- the committed text already carries enough signal.
-  /// Without context, we require a longer prompt so the model has something
-  /// concrete to work with (a 2-3 letter fragment alone hallucinates).
+  /// Min prompt length (bytes) to trigger prediction WITHOUT context. With
+  /// context any non-empty prompt triggers; without it a short fragment alone
+  /// just hallucinates, so we wait for more.
   int min_effective_length = 12;
-  /// Max history records to scan for sliding window.
+  /// Max history records to scan for the sliding window.
   int context_window_size = 10;
 };
 
@@ -58,14 +51,9 @@ class ContextBuilder {
                                                 const ContextBuilderOptions& opt);
 };
 
-/// Clean a raw model output for display in the candidate menu.
-///
-/// The CT2 model emits exactly the new suffix (it does NOT echo the window
-/// prefix and does NOT replay the user's just-committed punctuation), so the
-/// only postprocessing we need is to strip any punctuation the model itself
-/// produced -- candidates with trailing "。" / "！" / "（…）" feel noisy in
-/// the menu. If a future model changes its output convention, the place to
-/// reintroduce window-prefix stripping is here.
+/// Clean a raw model output for display in the candidate menu: strips any
+/// punctuation the model emitted (see BuildWindowContext for why punctuation
+/// is tolerated on input but must never reach a candidate).
 string ExtractDisplayText(const string& model_output);
 
 }  // namespace predict

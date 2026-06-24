@@ -154,35 +154,18 @@ void PredictionEngine::WorkerLoop() {
                   << ctx->composition().back().selected_index << ")";
         continue;
       }
-      // We can't just fire update_notifier: ConcreteEngine::Compose skips
-      // segments whose status >= kGuess, so the existing menu would be
-      // reused and PredictTranslator::Query would never be re-invoked.
-      // RefreshNonConfirmedComposition pops the non-selected tail of the
-      // composition (status < kSelected), forcing the next Compose to
-      // re-segment and re-translate -- which triggers our cache HIT path.
+      // A plain update_notifier won't do: ConcreteEngine::Compose skips
+      // segments with status >= kGuess, so it would reuse the old menu and
+      // never re-invoke PredictTranslator::Query. RefreshNonConfirmedComposition
+      // pops the non-selected tail, forcing a re-translate that hits our cache.
       LOG(INFO) << "PredictionEngine: refreshing composition to surface "
                 << "AI candidate for cache_key='" << cache_key << "'";
       ctx->RefreshNonConfirmedComposition();
-      // RefreshNonConfirmedComposition() runs Compose() synchronously on this
-      // worker thread, so by the time it returns the new menu (including the
-      // AI candidate, after PredictFilter) is fully built. Only NOW is it
-      // safe to ask the frontend (e.g. Squirrel) to re-read the context.
-      //
-      // Reserved-key protocol from rime/squirrel#1124: "_refresh_ui" tells
-      // any frontend that supports the convention to re-pull the menu now
-      // that the async build is complete. Frontends that don't implement it
-      // (older Squirrel, weasel, etc.) silently ignore the property, so the
-      // plugin continues to work — just without the live refresh.
-      //
-      // The payload carries `source=ai_predict&kind=full` so frontends and
-      // log readers can attribute the refresh to this plugin and (later)
-      // route per-source. Frontends that ignore the body still rimeUpdate(),
-      // so the body is purely informational.
-      //
-      // We deliberately do NOT signal off "ai_predict/text": that one is set
-      // from inside AIPredictTranslator::Query (i.e. *during* Compose), so a
-      // frontend racing on it would observe an empty/torn menu mid-build and
-      // hide the panel.
+      // Refresh ran Compose() synchronously, so the new menu is fully built
+      // now -- only now is it safe to tell the frontend to re-read it. We
+      // signal off kRefreshUI rather than "ai_predict/text" because the latter
+      // is set during Compose, so a frontend racing on it would see a torn menu
+      // mid-build. See frontend_protocol.h for the protocol itself.
       ctx->set_property(
           protocol::kRefreshUI,
           protocol::MakeRefreshUIPayload(protocol::kPluginCodename));

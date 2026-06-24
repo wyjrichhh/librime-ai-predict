@@ -9,11 +9,10 @@ namespace protocol {
 
 std::string MakeRefreshUIPayload(const std::string& source,
                                  const std::string& kind) {
-  // Both fields are plugin-controlled identifiers ([a-z0-9_]+ by
-  // convention), so they're safe to embed without percent-encoding.
-  // If the convention is ever broken the worst-case is a malformed
-  // query string -- the frontend's URL parser drops it silently and
-  // the action still fires (refresh has no required fields).
+  // Both fields are plugin-controlled identifiers ([a-z0-9_]+ by convention),
+  // so they need no percent-encoding. A broken convention only yields a
+  // malformed query string, which the frontend drops silently -- the refresh
+  // still fires (it has no required fields).
   std::string out;
   out.reserve(source.size() + kind.size() + 16);
   out.append("source=").append(source);

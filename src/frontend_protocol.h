@@ -71,16 +71,11 @@ inline constexpr const char* kPluginCodename = "ai_predict";
 std::string MakeRefreshUIPayload(const std::string& source,
                                  const std::string& kind = "full");
 
-// Builds the value for kCommentHighlight from a single non-negative
-// index. Returns "" when index < 0 (means "no row to highlight this
-// frame" -- frontends clear the cache).
+// Builds the value for kCommentHighlight from a single non-negative index.
+// Returns "" when index < 0 (means "no row to highlight this frame").
 //
-// Encoding: bare-list shorthand ("0", "0,2"). The frontend protocol
-// normalises this into its neutral `value` field ({ value: "0,2" }),
-// and the bare-list form is also accepted directly by frontends that
-// read the shorthand (lotem 2026-05-06). Keeping a single integer (vs.
-// the long-form "value=0") shaves bytes on the IPC path that runs every
-// Compose().
+// Encoding: bare-list shorthand ("0", "0,2"), which frontends accept directly
+// and normalise into their neutral `value` field.
 std::string MakeCommentHighlightPayload(int index);
 
 }  // namespace protocol
