@@ -39,6 +39,11 @@ struct ContextBuilderOptions {
   /// context any non-empty prompt triggers; without it a short fragment alone
   /// just hallucinates, so we wait for more.
   int min_effective_length = 12;
+  /// Min prompt length (letters) to trigger prediction WITH context. A single
+  /// letter carries almost no signal -- the model can only guess the next
+  /// character, and log analysis shows such offers are never selected. We still
+  /// fire on >=2 letters since real context makes even a short fragment useful.
+  int min_context_prompt_length = 2;
   /// Max history records to scan for the sliding window.
   int context_window_size = 10;
 };
@@ -55,6 +60,15 @@ class ContextBuilder {
 /// punctuation the model emitted (see BuildWindowContext for why punctuation
 /// is tolerated on input but must never reach a candidate).
 string ExtractDisplayText(const string& model_output);
+
+/// True iff `display` is fit to surface as a candidate. Rejects any text still
+/// carrying a Latin letter [A-Za-z]: that residue means the prompt was a
+/// half-typed syllable ("qizh" -> "期ZH") or an English word fed as pinyin
+/// ("feature" -> "FEATURE"), and the model could only echo the untypable part
+/// back in caps. Log analysis shows such candidates are never selected, so we
+/// suppress them rather than show garbage. Call on the already-stripped display
+/// text (post-ExtractDisplayText).
+bool IsDisplayableCandidate(const string& display);
 
 }  // namespace predict
 }  // namespace rime

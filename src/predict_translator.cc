@@ -99,6 +99,9 @@ void PredictTranslator::LoadOptions() {
   if (config->GetInt("ai_predict/min_input_length", &n) && n > 0) {
     ctx_opt_.min_effective_length = n;
   }
+  if (config->GetInt("ai_predict/min_context_prompt_length", &n) && n > 0) {
+    ctx_opt_.min_context_prompt_length = n;
+  }
   if (config->GetInt("ai_predict/context_window_size", &n) && n > 0) {
     ctx_opt_.context_window_size = n;
   }
@@ -119,6 +122,7 @@ void PredictTranslator::LoadOptions() {
   LOG(INFO) << "ai_predict_translator: options loaded"
             << " model_path=" << model_path_raw_
             << " min_input_length=" << ctx_opt_.min_effective_length
+            << " min_context_prompt_length=" << ctx_opt_.min_context_prompt_length
             << " context_window_size=" << ctx_opt_.context_window_size
             << " debounce_ms=" << engine_opt_.debounce_ms
             << " max_tokens=" << engine_opt_.max_tokens
@@ -197,7 +201,13 @@ an<Translation> PredictTranslator::Query(const string& input,
   if (auto raw = prediction_->GetCachedResult(built->cache_key)) {
     if (!raw->empty()) {
       const string display = ExtractDisplayText(*raw);
-      if (!display.empty()) {
+      // A cached result is deterministic: if its display text is unusable
+      // (empty after punctuation strip, or carrying Latin residue from a
+      // half-typed syllable / English word), re-scheduling would recompute the
+      // SAME unusable output and refresh again -- a busy loop. So on a HIT we
+      // either surface the candidate or give up for this key; we never fall
+      // through to Schedule().
+      if (!display.empty() && IsDisplayableCandidate(display)) {
         LOG(INFO) << "ai_predict_translator: cache HIT display='" << display << "'";
         PublishAITextProperty(engine_, display);
         auto cand = New<SimpleCandidate>("ai_predict", segment.start, segment.end,
@@ -205,6 +215,10 @@ an<Translation> PredictTranslator::Query(const string& input,
         cand->set_quality(ai_quality_);
         return New<AIPredictTranslation>(cand);
       }
+      LOG(INFO) << "ai_predict_translator: cache HIT suppressed (unusable display)"
+                << " raw='" << *raw << "'";
+      PublishAITextProperty(engine_, "");
+      return nullptr;
     }
   }
 

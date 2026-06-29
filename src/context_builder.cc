@@ -164,6 +164,20 @@ std::optional<PredictionContext> ContextBuilder::Build(
   if (!has_context && static_cast<int>(prompt.length()) < threshold) {
     return std::nullopt;
   }
+  // Even with context, a one-letter prompt carries almost no signal: the model
+  // just guesses the next character and the offer is never taken (log analysis).
+  // Count letters only -- the syllable-separator apostrophe doesn't add signal.
+  if (has_context) {
+    int letters = std::count_if(prompt.begin(), prompt.end(), [](char c) {
+      return c >= 'a' && c <= 'z';
+    });
+    int min_letters = opt.min_context_prompt_length > 0
+                          ? opt.min_context_prompt_length
+                          : 2;
+    if (letters < min_letters) {
+      return std::nullopt;
+    }
+  }
 
   PredictionContext ctx;
   ctx.effective_prompt = prompt;
@@ -177,6 +191,15 @@ std::optional<PredictionContext> ContextBuilder::Build(
 
 string ExtractDisplayText(const string& model_output) {
   return StripAllPunctuation(model_output);
+}
+
+bool IsDisplayableCandidate(const string& display) {
+  for (char c : display) {
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace predict

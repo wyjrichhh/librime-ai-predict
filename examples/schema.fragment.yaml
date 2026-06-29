@@ -48,6 +48,12 @@
 #     # context (cold start, just after Return/BackSpace, history is all
 #     # punct/raw), the prompt must be long enough to anchor the model alone.
 #     min_input_length: 12
+#     # Minimum prompt length (letters) to trigger WHEN there IS Chinese context.
+#     # A one-letter prompt carries almost no signal: the model just guesses the
+#     # next character and log analysis shows these offers are never selected. 2
+#     # is a safe floor; raise it to be more conservative about mid-typing
+#     # predictions.
+#     min_context_prompt_length: 2
 #     context_window_size: 10
 #     debounce_ms: 200
 #     max_tokens: 64
