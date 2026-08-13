@@ -107,6 +107,19 @@ class AIPredictFilteredTranslation : public Translation {
       upstream_->Next();
     }
 
+    // 引擎的 uniquifier 按「已弹出的候选列表」去重,而此刻引擎还没弹出任何候选、
+    // 那批列表为空,所以它没法对这批预取的候选去重。这里按文本补一道去重,
+    // 避免词库词被句模式/用户词库重复(如 haishi → 还是 + 还是)。
+    for (size_t i = 0; i < buf.size(); ++i) {
+      for (size_t j = i + 1; j < buf.size();) {
+        if (buf[j]->text() == buf[i]->text()) {
+          buf.erase(buf.begin() + j);
+        } else {
+          ++j;
+        }
+      }
+    }
+
     if (ai_text_.empty()) {
       // No AI suggestion in flight; pass everything through unchanged.
       reordered_ = std::move(buf);
