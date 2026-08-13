@@ -70,6 +70,12 @@ string ExtractDisplayText(const string& model_output);
 /// text (post-ExtractDisplayText).
 bool IsDisplayableCandidate(const string& display);
 
+/// Number of CJK Unified Ideographs in `text`. Count (not just a presence bool)
+/// so callers can gate on "at least N Hanzi" — e.g. suppress single-Hanzi AI
+/// candidates, which the schema dictionary already ranks by frequency far more
+/// reliably than the model's context-free continuation.
+int CountHan(const string& text);
+
 }  // namespace predict
 }  // namespace rime
 

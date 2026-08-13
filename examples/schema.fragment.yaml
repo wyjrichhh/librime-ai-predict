@@ -63,3 +63,9 @@
 #     search_range: 10            # how many upstream candidates to scan for dedup
 #     # Translator knob (optional, mostly for debugging):
 #     quality: -1
+#     # Minimum Hanzi in a surfaced prediction. Single-Hanzi homophones
+#     # (是/时/事, 在/再, 的/得…) are the schema dictionary's strength and the
+#     # model's weakness -- the model has no frequency signal and loses those
+#     # races ~30% of the time. Let the dictionary take single chars; only
+#     # surface 2+ Hanzi words.
+#     min_hanzi: 2

@@ -75,20 +75,6 @@ string StripAllPunctuation(const string& text) {
   return result;
 }
 
-// True iff `text` contains at least one CJK Unified Ideograph. Decides whether
-// a window carries real Chinese context: a window of only punctuation (a lone
-// "。" left from a prior commit) must NOT count, or it bypasses the cold-start
-// length gate and spawns low-value inferences.
-bool ContainsHan(const string& text) {
-  auto it = text.begin();
-  while (it != text.end()) {
-    uint32_t cp = utf8::next(it, text.end());
-    if (cp >= 0x4E00 && cp <= 0x9FFF)
-      return true;
-  }
-  return false;
-}
-
 /// Walk commit history (most recent first, capped at `max_records`) and
 /// reconstruct the Chinese context window.
 ///
@@ -134,6 +120,17 @@ void BuildWindowContext(Context* ctx,
 
 }  // namespace
 
+int CountHan(const string& text) {
+  int n = 0;
+  auto it = text.begin();
+  while (it != text.end()) {
+    uint32_t cp = utf8::next(it, text.end());
+    if (cp >= 0x4E00 && cp <= 0x9FFF)
+      ++n;
+  }
+  return n;
+}
+
 std::optional<PredictionContext> ContextBuilder::Build(
     Engine* engine,
     const string& raw_input,
@@ -159,8 +156,8 @@ std::optional<PredictionContext> ContextBuilder::Build(
   // Context-first trigger: real Chinese context always fires (the committed
   // prefix is our strongest signal); cold start requires prompt >= threshold.
   // "Real context" means at least one Hanzi, not merely non-empty -- see
-  // ContainsHan.
-  bool has_context = ContainsHan(window_text);
+  // CountHan.
+  bool has_context = CountHan(window_text) > 0;
   if (!has_context && static_cast<int>(prompt.length()) < threshold) {
     return std::nullopt;
   }

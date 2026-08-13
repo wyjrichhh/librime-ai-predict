@@ -25,3 +25,7 @@ compile_commands.json
 
 # 本地开发笔记(含真实日志路径/主机名,不公开)
 /CLAUDE.md
+
+# 本地推理调参工具与用例(含真实输入数据,不公开)
+/eval/
+.venv-eval

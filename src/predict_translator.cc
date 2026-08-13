@@ -119,6 +119,9 @@ void PredictTranslator::LoadOptions() {
   if (config->GetDouble("ai_predict/quality", &q)) {
     ai_quality_ = q;
   }
+  if (config->GetInt("ai_predict/min_hanzi", &n) && n > 0) {
+    min_hanzi_ = n;
+  }
   LOG(INFO) << "ai_predict_translator: options loaded"
             << " model_path=" << model_path_raw_
             << " min_input_length=" << ctx_opt_.min_effective_length
@@ -127,7 +130,8 @@ void PredictTranslator::LoadOptions() {
             << " debounce_ms=" << engine_opt_.debounce_ms
             << " max_tokens=" << engine_opt_.max_tokens
             << " device=" << device_
-            << " quality=" << ai_quality_;
+            << " quality=" << ai_quality_
+            << " min_hanzi=" << min_hanzi_;
 }
 
 std::filesystem::path PredictTranslator::ResolveModelPath() const {
@@ -202,12 +206,13 @@ an<Translation> PredictTranslator::Query(const string& input,
     if (!raw->empty()) {
       const string display = ExtractDisplayText(*raw);
       // A cached result is deterministic: if its display text is unusable
-      // (empty after punctuation strip, or carrying Latin residue from a
-      // half-typed syllable / English word), re-scheduling would recompute the
+      // (empty after punctuation strip, carrying Latin residue, or a single
+      // Hanzi the dictionary ranks better), re-scheduling would recompute the
       // SAME unusable output and refresh again -- a busy loop. So on a HIT we
       // either surface the candidate or give up for this key; we never fall
       // through to Schedule().
-      if (!display.empty() && IsDisplayableCandidate(display)) {
+      if (!display.empty() && IsDisplayableCandidate(display) &&
+          CountHan(display) >= min_hanzi_) {
         LOG(INFO) << "ai_predict_translator: cache HIT display='" << display << "'";
         PublishAITextProperty(engine_, display);
         auto cand = New<SimpleCandidate>("ai_predict", segment.start, segment.end,
