@@ -190,9 +190,9 @@ an<Translation> PredictTranslator::Query(const string& input,
   auto built = ContextBuilder::Build(engine_, input, ctx_opt_);
   if (!built) {
     LOG(INFO) << "ai_predict_translator: Query no context built (input too short / no commit history)";
-    if (prediction_) {
-      prediction_->ClearCache();
-    }
+    // 失败路径不清缓存：缓存按 window_text|prompt 作 key，旧结果只会在同一输入下
+    // 命中（正确的复用）；在此清缓存会在前导非拼音段（大写 raw/标点/符号）先于拼音段
+    // 被翻译时，反复冲掉拼音段刚算好的结果，造成刷新死循环。
     PublishAITextProperty(engine_, "");
     return nullptr;
   }
@@ -211,7 +211,7 @@ an<Translation> PredictTranslator::Query(const string& input,
       // SAME unusable output and refresh again -- a busy loop. So on a HIT we
       // either surface the candidate or give up for this key; we never fall
       // through to Schedule().
-      if (!display.empty() && IsDisplayableCandidate(display) &&
+      if (!display.empty() && IsDisplayableCandidate(display, built->effective_prompt) &&
           CountHan(display) >= min_hanzi_) {
         LOG(INFO) << "ai_predict_translator: cache HIT display='" << display << "'";
         PublishAITextProperty(engine_, display);
@@ -229,6 +229,20 @@ an<Translation> PredictTranslator::Query(const string& input,
 
   LOG(INFO) << "ai_predict_translator: cache MISS, scheduling inference";
   PublishAITextProperty(engine_, "");
+  // 只有「当前段」（最后一个 segment）才调度推理。composition 会被大写 raw 段切成
+  // 多个拼音段, 若每个段都各自调度, 单槽 cache 会被多段轮流覆盖, 形成「A 命中→B 未
+  // 命中→调度 B→B 命中→A 未命中」的乒乓, 候选在词库与 AI 之间来回闪烁。前面的段
+  // 前端不读它的 menu, 调度了也白调度, 还抢 cache。
+  bool is_active_segment = false;
+  if (engine_ && engine_->context()) {
+    const Composition& comp = engine_->context()->composition();
+    is_active_segment =
+        !comp.empty() && comp.back().start == segment.start &&
+        comp.back().end == segment.end;
+  }
+  if (!is_active_segment) {
+    return nullptr;
+  }
   prediction_->Schedule(*built);
   return nullptr;
 }

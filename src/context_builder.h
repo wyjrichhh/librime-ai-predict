@@ -61,14 +61,13 @@ class ContextBuilder {
 /// is tolerated on input but must never reach a candidate).
 string ExtractDisplayText(const string& model_output);
 
-/// True iff `display` is fit to surface as a candidate. Rejects any text still
-/// carrying a Latin letter [A-Za-z]: that residue means the prompt was a
-/// half-typed syllable ("qizh" -> "期ZH") or an English word fed as pinyin
-/// ("feature" -> "FEATURE"), and the model could only echo the untypable part
-/// back in caps. Log analysis shows such candidates are never selected, so we
-/// suppress them rather than show garbage. Call on the already-stripped display
-/// text (post-ExtractDisplayText).
-bool IsDisplayableCandidate(const string& display);
+/// True iff `display` is fit to surface as a candidate. Rejects lowercase
+/// Latin (a half-typed syllable echoed back: "qizh" -> "期ZH"), and rejects
+/// uppercase Latin unless `prompt` itself carried an uppercase acronym (the
+/// user really typed APPLE/IBM, so the model echoing it back is correct). The
+/// candidate must also contain Hanzi so a pure-English echo ("FEATURE") stays
+/// suppressed.
+bool IsDisplayableCandidate(const string& display, const string& prompt);
 
 /// Number of CJK Unified Ideographs in `text`. Count (not just a presence bool)
 /// so callers can gate on "at least N Hanzi" — e.g. suppress single-Hanzi AI

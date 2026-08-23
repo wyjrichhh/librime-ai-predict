@@ -130,12 +130,16 @@ void PredictionEngine::WorkerLoop() {
     if (engine_ && engine_->context()) {
       Context* ctx = engine_->context();
       string current = StripSpaces(ctx->input());
-      // Composition consistency check uses the pure pinyin (prompt_snap),
-      // since ctx->input() is also pure pinyin -- the cache_key carries the
-      // window_text prefix which is NEVER part of ctx->input().
+      // 只有「当前输入的拼音部分」和推理时的 prompt 一致才刷新。拼音部分是 current
+      // 去掉前导 raw/uppercase 前缀(如 "IBM")后的后缀, 故用「key 是 current 后缀」判定。
+      // key 是 current 前缀(继续输入)或两者无关(退格/改字)时跳过: 否则刷新后必然
+      // cache MISS 并重新调度, 形成「推理→刷新→MISS→推理」追赶循环, 让候选来回闪烁。
       string key = StripSpaces(prompt_snap);
-      if (!key.empty() && current.find(key) == string::npos &&
-          key.find(current) == string::npos) {
+      bool current_matches =
+          key.empty() || current == key ||
+          (current.size() > key.size() &&
+           current.compare(current.size() - key.size(), key.size(), key) == 0);
+      if (!current_matches) {
         LOG(INFO) << "PredictionEngine: skip refresh, composition changed"
                   << " (prompt='" << prompt_snap << "' current_input='"
                   << ctx->input() << "')";

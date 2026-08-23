@@ -32,6 +32,10 @@
 #   # zh-base-ct2-int8 仅适配简体；朙月拼音默认开关顺序为 @0 ascii @1 full_shape
 #   # @2 simplification —— states [ 漢字, 汉字 ]，reset: 1 表示默认「汉字」(简体)
 #   switches/@2/reset: 1
+#   # 覆盖官方 uppercase 模式: 原 [A-Z][-_+.'0-9A-Za-z]*$ 贪婪匹配「大写+后续小写」
+#   # 整串(IBM+拼音被吞成无 translator 的 uppercase 段), 导致大写后拼音无候选。
+#   # 去掉 [a-z] 让纯大写缩写独立成段、后续小写切回拼音。
+#   recognizer/patterns/uppercase: "[A-Z][-_+.'0-9A-Z]*$"
 #   engine/translators:
 #     - ai_predict_translator     # MUST be first
 #     - punct_translator

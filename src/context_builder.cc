@@ -34,6 +34,8 @@ bool IsPinyinPrompt(const string& s) {
   for (char c : s) {
     if (c >= 'a' && c <= 'z') {
       has_letter = true;
+    } else if (c >= 'A' && c <= 'Z') {
+      // 英文缩写（如 APPLE/IBM）：不因此拒绝，prompt 保留大写交给模型处理。
     } else if (c != '\'') {
       return false;
     }
@@ -139,12 +141,10 @@ std::optional<PredictionContext> ContextBuilder::Build(
   if (prompt.empty()) {
     return std::nullopt;
   }
-  // Reject non-pinyin segments (lone punctuation, ASCII symbols, uppercase
-  // acronyms). Without this, a committed-context window + a single "," prompt
-  // reaches the model and comes back as a junk "," candidate.
   if (!IsPinyinPrompt(prompt)) {
     return std::nullopt;
   }
+  // prompt 保留大写（英文缩写如 APPLE），模型能直接处理并回显它。
   int threshold = opt.min_effective_length > 0 ? opt.min_effective_length : 12;
 
   string window_text;
@@ -190,13 +190,27 @@ string ExtractDisplayText(const string& model_output) {
   return StripAllPunctuation(model_output);
 }
 
-bool IsDisplayableCandidate(const string& display) {
+bool IsDisplayableCandidate(const string& display, const string& prompt) {
   for (char c : display) {
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+    if (c >= 'a' && c <= 'z') {
       return false;
     }
   }
-  return true;
+  bool prompt_has_upper = false;
+  for (char c : prompt) {
+    if (c >= 'A' && c <= 'Z') {
+      prompt_has_upper = true;
+      break;
+    }
+  }
+  if (!prompt_has_upper) {
+    for (char c : display) {
+      if (c >= 'A' && c <= 'Z') {
+        return false;
+      }
+    }
+  }
+  return CountHan(display) > 0;
 }
 
 }  // namespace predict
