@@ -30,9 +30,11 @@ namespace {
 //     "rime.<frontend>.ai_predict.*.log.INFO" -- physically separate from the
 //     main process's "rime.<frontend>.*.log.INFO".
 void EnsurePluginLoggingInitialized() {
-  if (google::IsGoogleLoggingInitialized()) {
+  static bool initialized = false;
+  if (initialized) {
     return;
   }
+  initialized = true;
 
   if (const char* dir = std::getenv("RIME_LOG_DIR")) {
     if (dir[0] != '\0') {
@@ -56,7 +58,7 @@ void EnsurePluginLoggingInitialized() {
   google::SetLogSymlink(google::GLOG_WARNING, app_name.c_str());
   google::SetLogSymlink(google::GLOG_ERROR, app_name.c_str());
   FLAGS_logfile_mode = 0600;
-  google::InitGoogleLogging(app_name.c_str());
+  // google::InitGoogleLogging(app_name.c_str()); // glog owned by host
 }
 
 }  // namespace
@@ -72,9 +74,7 @@ static void rime_ai_predict_initialize() {
 }
 
 static void rime_ai_predict_finalize() {
-  if (google::IsGoogleLoggingInitialized()) {
-    google::ShutdownGoogleLogging();
-  }
+  // google::ShutdownGoogleLogging(); // glog owned by host
 }
 
 RIME_REGISTER_MODULE(ai_predict)
