@@ -209,8 +209,12 @@ PredictFilter::PredictFilter(const Ticket& ticket)
   if (cfg->GetInt("ai_predict/search_range", &n) && n > 0) {
     search_range_ = static_cast<size_t>(n);
   }
+  bool enabled = true;
+  if (cfg->GetBool("ai_predict/enabled", &enabled)) {
+    enabled_ = enabled;
+  }
   LOG(INFO) << "ai_predict_filter: ctor target_index=" << target_index_
-            << " search_range=" << search_range_;
+            << " search_range=" << search_range_ << " enabled=" << enabled_;
 }
 
 an<Translation> PredictFilter::Apply(an<Translation> translation,

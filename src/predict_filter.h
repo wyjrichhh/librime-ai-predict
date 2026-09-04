@@ -22,13 +22,17 @@ class PredictFilter : public Filter, TagMatching {
   an<Translation> Apply(an<Translation> translation,
                         CandidateList* candidates) override;
 
-  bool AppliesToSegment(Segment* segment) override { return TagsMatch(segment); }
+  bool AppliesToSegment(Segment* segment) override {
+    return enabled_ && TagsMatch(segment);
+  }
 
  private:
   /// Where to place the AI candidate (0-based; default 1 → second slot).
   size_t target_index_ = 1;
   /// How many upstream candidates to scan when looking for a text-match dedup.
   size_t search_range_ = 10;
+  /// Kill switch: false makes the filter a no-op (see ai_predict/enabled).
+  bool enabled_ = true;
 };
 
 }  // namespace predict
