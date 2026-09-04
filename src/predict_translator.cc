@@ -122,6 +122,10 @@ void PredictTranslator::LoadOptions() {
   if (config->GetInt("ai_predict/min_hanzi", &n) && n > 0) {
     min_hanzi_ = n;
   }
+  bool enabled = true;
+  if (config->GetBool("ai_predict/enabled", &enabled)) {
+    enabled_ = enabled;
+  }
   LOG(INFO) << "ai_predict_translator: options loaded"
             << " model_path=" << model_path_raw_
             << " min_input_length=" << ctx_opt_.min_effective_length
@@ -131,7 +135,8 @@ void PredictTranslator::LoadOptions() {
             << " max_tokens=" << engine_opt_.max_tokens
             << " device=" << device_
             << " quality=" << ai_quality_
-            << " min_hanzi=" << min_hanzi_;
+            << " min_hanzi=" << min_hanzi_
+            << " enabled=" << enabled_;
 }
 
 std::filesystem::path PredictTranslator::ResolveModelPath() const {
@@ -146,6 +151,9 @@ std::filesystem::path PredictTranslator::ResolveModelPath() const {
 }
 
 bool PredictTranslator::EnsureEngine() {
+  if (!enabled_) {
+    return false;
+  }
   if (init_ok_ && prediction_) {
     return true;
   }

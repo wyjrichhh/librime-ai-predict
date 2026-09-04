@@ -45,6 +45,9 @@
 #     - uniquifier
 #     - ai_predict_filter         # safe to put last; runs after dedup
 #   ai_predict:
+#     # Kill switch: set false to disable AI prediction without removing
+#     # ai_predict_translator / ai_predict_filter from the engine lists.
+#     enabled: true
 #     model_path: predict_models/zh-base-ct2-int8
 #     # Minimum prompt length (bytes) to trigger prediction WHEN there is no
 #     # usable Chinese context. With context, any non-empty prompt triggers --
