@@ -26,7 +26,7 @@ endif
 
 deps:
 	git submodule update --init deps/CTranslate2
-	cd deps/CTranslate2 && git submodule update --init third_party/spdlog third_party/cpu_features
+	cd deps/CTranslate2 && git submodule update --init third_party/spdlog third_party/cpu_features third_party/ruy
 	$(MAKE) -f deps.mk
 
 deps/%:

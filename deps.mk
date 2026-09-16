@@ -34,6 +34,10 @@ clean-dist:
 	rm -f $(prefix)/lib/libcpu_features* || true
 	rm -rf $(prefix)/include/ctranslate2 || true
 
+# WITH_RUY 是 int8 的唯一出路：CT2 的后端判定里 Accelerate 只接 float32，
+# 没有 ruy 时 int8 模型会被静默降级成 float32 跑（内存翻约 3 倍、推理慢约 30%）。
+# CMAKE_POLICY_VERSION_MINIMUM 则是为了让 CMake 4.x 还能配置 ruy 自带的 cpuinfo
+# （其 CMakeLists 声明的最低版本低于 3.5，新 CMake 已直接拒绝）。
 ctranslate2:
 	cd $(deps_dir)/CTranslate2; \
 	cmake . -B$(build) \
@@ -43,8 +47,9 @@ ctranslate2:
 	-DWITH_CUDA:BOOL=OFF \
 	-DWITH_MKL:BOOL=OFF \
 	-DWITH_OPENBLAS:BOOL=OFF \
-	-DWITH_RUY:BOOL=OFF \
+	-DWITH_RUY:BOOL=ON \
 	-DWITH_ACCELERATE:BOOL=$(if $(filter Darwin,$(OS_NAME)),ON,OFF) \
+	-DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5 \
 	-DOPENMP_RUNTIME:STRING="NONE" \
 	-DCMAKE_BUILD_TYPE:STRING="Release" \
 	-DCMAKE_INSTALL_PREFIX:PATH="$(prefix)" \
@@ -55,4 +60,15 @@ ctranslate2:
 	@if [ -f "$(deps_dir)/CTranslate2/$(build)/third_party/cpu_features/libcpu_features.a" ]; then \
 		cp "$(deps_dir)/CTranslate2/$(build)/third_party/cpu_features/libcpu_features.a" "$(prefix)/lib/"; \
 		echo "Installed cpu_features.a to $(prefix)/lib/"; \
+	fi
+	@# ruy 被编成数十个子归档，而静态库不吸收依赖，需合并成单个 libruy.a 放进
+	@# prefix/lib —— 插件的 find_library(RUY_LIBRARY) 才找得到，否则链接期报未定义符号。
+	ruy_dir="$(deps_dir)/CTranslate2/$(build)/third_party/ruy"; \
+	if [ -d "$$ruy_dir/ruy" ]; then \
+		libtool -static -o "$(prefix)/lib/libruy.a" \
+			"$$ruy_dir/ruy"/libruy*.a \
+			"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
+			"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
+			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a" 2>/dev/null; \
+		echo "Installed libruy.a to $(prefix)/lib/"; \
 	fi
