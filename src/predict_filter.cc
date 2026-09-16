@@ -167,10 +167,11 @@ class AIPredictFilteredTranslation : public Translation {
                 << ", type=" << matched->type() << ") to slot #"
                 << target_index_ << " with AI marker";
     } else {
-      ai_cand = New<SimpleCandidate>(kAICandidateType,
-                                     buf.front()->start(),
-                                     buf.front()->end(),
-                                     ai_text_, kAICommentMarker);
+      // ShadowCandidate（shadow 到上游首候选）：librime 对 shadow 候选的
+      // 确认/commit 走标准路径；SimpleCandidate 自定义类型选中时 commit 为空
+      ai_cand = New<ShadowCandidate>(buf.front(), kAICandidateType,
+                                     ai_text_, kAICommentMarker,
+                                     /*inherit_comment=*/false);
       LOG(INFO) << "ai_predict_filter: inserted new AI candidate '"
                 << ai_text_ << "' at slot #" << target_index_;
     }
@@ -201,6 +202,12 @@ PredictFilter::PredictFilter(const Ticket& ticket)
   if (!engine_ || !engine_->schema() || !engine_->schema()->config()) {
     return;
   }
+  // 在 Compose 完成（菜单已填充）后发刷新信号：宿主此刻采样快照才完整。
+  // filter 与 engine 同生命周期重建，连接随 context 销毁自动失效
+  engine_->context()->update_notifier().connect([this](Context* ctx) {
+    if (enabled_ && !ctx->get_property(kAITextProperty).empty())
+      ctx->set_property("ai_predict/refresh", "1");
+  });
   Config* cfg = engine_->schema()->config();
   int n = 0;
   if (cfg->GetInt("ai_predict/target_index", &n) && n >= 0) {
@@ -209,8 +216,12 @@ PredictFilter::PredictFilter(const Ticket& ticket)
   if (cfg->GetInt("ai_predict/search_range", &n) && n > 0) {
     search_range_ = static_cast<size_t>(n);
   }
+  bool enabled = true;
+  if (cfg->GetBool("ai_predict/enabled", &enabled)) {
+    enabled_ = enabled;
+  }
   LOG(INFO) << "ai_predict_filter: ctor target_index=" << target_index_
-            << " search_range=" << search_range_;
+            << " search_range=" << search_range_ << " enabled=" << enabled_;
 }
 
 an<Translation> PredictFilter::Apply(an<Translation> translation,

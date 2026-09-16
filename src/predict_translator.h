@@ -33,6 +33,9 @@ class PredictTranslator : public Translator {
   PredictionEngineOptions engine_opt_;
   std::string model_path_raw_;
   std::string device_;
+  /// Kill switch: false makes the translator inert without touching the
+  /// schema's translators/filters lists (see ai_predict/enabled).
+  bool enabled_ = true;
   /// Candidate quality for merged ordering; default -1 yields first slot to script candidates.
   double ai_quality_ = -1.0;
   /// Min Hanzi count for a prediction to be surfaced. Single-Hanzi homophones

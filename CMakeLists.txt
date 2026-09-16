@@ -45,8 +45,7 @@ find_library(CPU_FEATURES_LIBRARY NAMES cpu_features
 if(CPU_FEATURES_LIBRARY)
   list(APPEND CTRANSLATE2_LIBRARIES ${CPU_FEATURES_LIBRARY})
 endif()
-# ruy 是 int8 GEMM 的唯一后端（Accelerate 只接 float32），Windows 上另有 AVX
-# 打包符号未并入 ctranslate2.lib。deps.mk 会把 ruy 的子归档合并成 libruy.a。
+# Windows/ruy 后端：AVX 打包符号在独立 ruy.lib，未并入 ctranslate2.lib
 find_library(RUY_LIBRARY NAMES ruy
   PATHS "${CTRANSLATE2_ROOT}/lib" NO_DEFAULT_PATH
 )

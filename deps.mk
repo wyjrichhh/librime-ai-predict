@@ -34,10 +34,6 @@ clean-dist:
 	rm -f $(prefix)/lib/libcpu_features* || true
 	rm -rf $(prefix)/include/ctranslate2 || true
 
-# WITH_RUY 是 int8 的唯一出路：CT2 的后端判定里 Accelerate 只接 float32，
-# 没有 ruy 时 int8 模型会被静默降级成 float32 跑（内存翻约 3 倍、推理慢约 30%）。
-# CMAKE_POLICY_VERSION_MINIMUM 则是为了让 CMake 4.x 还能配置 ruy 自带的 cpuinfo
-# （其 CMakeLists 声明的最低版本低于 3.5，新 CMake 已直接拒绝）。
 ctranslate2:
 	cd $(deps_dir)/CTranslate2; \
 	cmake . -B$(build) \
@@ -61,8 +57,8 @@ ctranslate2:
 		cp "$(deps_dir)/CTranslate2/$(build)/third_party/cpu_features/libcpu_features.a" "$(prefix)/lib/"; \
 		echo "Installed cpu_features.a to $(prefix)/lib/"; \
 	fi
-	@# ruy 被编成数十个子归档，而静态库不吸收依赖，需合并成单个 libruy.a 放进
-	@# prefix/lib —— 插件的 find_library(RUY_LIBRARY) 才找得到，否则链接期报未定义符号。
+	@# WITH_RUY 时 ruy 被编成数十个子归档，而静态库不吸收依赖；合并成一个 libruy.a
+	@# 放进 prefix/lib，插件的 find_library(RUY_LIBRARY) 才找得到。
 	ruy_dir="$(deps_dir)/CTranslate2/$(build)/third_party/ruy"; \
 	if [ -d "$$ruy_dir/ruy" ]; then \
 		libtool -static -o "$(prefix)/lib/libruy.a" \
