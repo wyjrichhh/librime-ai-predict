@@ -43,7 +43,7 @@ clean-dist:
 	rm -rf $(prefix)/include/ctranslate2 || true
 
 ctranslate2:
-	cd $(deps_dir)/CTranslate2; \
+	cd "$(deps_dir)/CTranslate2" && \
 	cmake . -B$(build) \
 	-DBUILD_SHARED_LIBS:BOOL=OFF \
 	-DBUILD_CLI:BOOL=OFF \
@@ -70,9 +70,9 @@ ctranslate2:
 	ruy_dir="$(deps_dir)/CTranslate2/$(build)/third_party/ruy"; \
 	if [ -d "$$ruy_dir/ruy" ]; then \
 		$(call merge_static,$(prefix)/lib/libruy.a, \
-			$$ruy_dir/ruy/libruy*.a \
-			$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a \
-			$$ruy_dir/third_party/cpuinfo/libcpuinfo.a \
-			$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a) \
+			"$$ruy_dir/ruy"/libruy*.a \
+			"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
+			"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
+			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a") \
 		&& echo "Installed libruy.a to $(prefix)/lib/"; \
 	fi
