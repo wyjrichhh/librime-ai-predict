@@ -2,7 +2,7 @@
 
 ## 验证状态
 
-2026-10-22：已在 Try Omarchy 的 Arch Linux ARM（aarch64）环境完成静态依赖、官方 librime 与 AI 插件、Fcitx5-Rime 前端的实际编译和链接，生成完整 pacman 安装包。部署、真实模型推理、刷新通知、候选读取、提交和重新初始化自检通过。随后已安装新包替换 Bangke，并验证桌面服务加载 Rime、控制接口切换到 `rime`；实际 GUI 键入及 AI 候选仍待用户验收；上游源码和词库的警告仍保留并记录在下文，不能将本次结果描述为“零警告”。
+2026-10-22：已在 Try Omarchy 的 Arch Linux ARM（aarch64）环境完成静态依赖、官方 librime 与 AI 插件、Fcitx5-Rime 前端的实际编译和链接，生成完整 pacman 安装包。部署、真实模型推理、刷新通知、候选读取、提交和重新初始化自检通过。随后已安装新包替换 Bangke，并验证桌面服务加载 Rime、控制接口切换到 `rime`；用户随后在同一 Omarchy 桌面实际完成输入和 AI 推理，确认安装包可用；上游源码和词库的警告仍保留并记录在下文，不能将本次结果描述为“零警告”。
 
 测试环境：8 核 CPU、约 8 GiB 内存，GCC 16.1.1、CMake 4.4.4、Fcitx5 5.1.23、google-glog 0.7.1。x86_64 尚未测试。
 
@@ -78,7 +78,7 @@ PKGBUILD 的 `check()` 检查插件符号、前端 RPATH，并编译运行 `smok
 
 ## 安装与用户配置
 
-本次已在 Omarchy 安装并完成服务及输入法切换检查。安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
+本次已在 Omarchy 安装，完成服务、输入法切换检查及用户实际输入和 AI 推理验收。安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
 
 ```bash
 sudo pacman -U "$package_file"
@@ -124,7 +124,8 @@ AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。�
 | 资源 | 包内 6 个模型文件逐一与经校验的模型源文件比较，字节完全一致；AI 方案也与仓库文件一致。 |
 | 源码路径 | 两个随包 ELF 均不再含本次 `$srcdir` 路径。 |
 | 运行自检 | 两轮输入 `jintiantianqihenhao` 均预测并提交「今天天气很好」，收到异步刷新通知；第二轮在 finalize 后重新初始化，正常完成。 |
-| 覆盖边界 | 测试加载前端 ELF 并直接调用 Rime API；未实例化桌面 Fcitx5 输入框，没有验收 GTK / Qt / Wayland 实际输入及候选窗口行为。 |
+| 桌面验收 | 用户在安装上述包的 Omarchy 桌面切换到中州韵，实际完成输入和 AI 推理。 |
+| 覆盖边界 | 自动自检加载前端 ELF 并直接调用 Rime API；用户桌面验收确认实际输入和推理可用，尚未逐项验收所有 GTK / Qt 应用、上下文预测及候选交互场景。 |
 
 第一次构建从空源码目录启动，后续修复通过核对提交后使用 `makepkg --noextract --log --force` 增量验证。`--noextract` 会明确警告 `Using existing $srcdir/ tree`；更新提交时还必须同步 makepkg 的 `src/plugin` checkout，并按新提交重新应用前端补丁，不能只更新外层 PKGBUILD。普通用户首次构建应使用上面的默认流程。
 
@@ -142,10 +143,10 @@ AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。�
 | glog 导出宏重复定义 | 插件原先将宿主为共享 glog 设置的导出宏覆盖为空。现继承 librime 的设置，重新编译无重定义警告。 |
 | 包内泄漏构建目录 | 新增编译器文件路径映射，并显式传递打包器的编译选项。两个随包 ELF 检查均无本次源码目录，makepkg 不再报告包内源码路径。 |
 | CTranslate2 / spdlog 编译警告 | 补齐 cpuinfo 后，基线在 GCC 16.1.1 下出现 stringop-overread（cpuinfo）、array-bounds（CT2 decoding）、dangling-reference（spdlog/fmt），以及 unused-parameter、comment、implicit-fallthrough、reorder、maybe-uninitialized 等警告；完整日志保留在远端。来源和运行影响仍需逐项核查，不能声明构建无警告。 |
-| 上游前端不处理刷新通知 | 包附补丁在 Fcitx 事件循环中更新匹配会话的聚焦输入框。补丁已编译、前端 ELF 加载通过；真实桌面刷新仍待验收。 |
+| 上游前端不处理刷新通知 | 包附补丁在 Fcitx 事件循环中更新匹配会话的聚焦输入框。补丁已编译、前端 ELF 加载通过，用户已在桌面完成 AI 推理；停止按键后的刷新时序仍需专项检查。 |
 | 刷新通知的封装格式判断错误 | 已按官方 librime 的 `_refresh_ui=source=ai_predict&kind=full` 封装修正前端补丁和自检，Rime API 自检确认两轮均收到刷新通知。 |
 | 插件可能关闭宿主的 glog | 仅关闭插件自己初始化的实例。两轮初始化 / finalize 均正常结束，没有关闭宿主 glog 导致的重载故障。 |
-| 已有输入法包冲突 | Omarchy 预装 `bangke-pinyin 5.0.19-12`，提供并冲突于 `fcitx5-rime`。新 PKGBUILD 显式声明冲突；目前没有卸载或替换它。 |
+| 已有输入法包冲突 | Omarchy 预装 `bangke-pinyin 5.0.19-12`，提供并冲突于 `fcitx5-rime`。新 PKGBUILD 显式声明冲突；实测安装时已替换它，新包在桌面完成推理。 |
 | 方案能打包但不能部署 | 将 Rime 在继承展开前要求的方案元数据放到顶层，并显式依赖 rime-stroke。AI 拼音与 stroke 的实际部署通过，自检同时检查部署状态和编译后的配置。 |
 | AI 方案忽略用户自定义配置 | 显式 __patch 会关闭自动 custom 补丁。现以补丁列表在默认设置后加载 `ai_pinyin.custom:/patch?`；自检确认自定义模型路径生效，并成功加载对应模型。 |
 | 词库预设词条编码警告 | 标准 rime-essay 的 193 条含间隔号或全角字母等词条出现 `Encode failure`。已核对 EntryCollector：失败发生在预设词汇补充阶段，这些词条被跳过，部署仍成功；例如「亞歷山大·杜布切克」和「ＡＡ制」。这是实际词汇覆盖限制，不是修复完成；未修改发行版词库或隐藏日志。 |
@@ -162,3 +163,7 @@ AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。�
 - [Arch makepkg 手册](https://man.archlinux.org/man/makepkg.8)：构建、日志与包管理参数。
 - [Arch PKGBUILD 手册](https://man.archlinux.org/man/PKGBUILD.5)：依赖、冲突和打包函数。
 - [Fcitx5-Rime 源码](https://github.com/fcitx/fcitx5-rime)：前端构建要求和通知处理。
+
+## 与 PR #2 的整合
+
+[PR #2](https://github.com/wyjrichhh/librime-ai-predict/pull/2) 修复了相同的 Linux RUY 静态归档合并问题：Linux 使用 GNU ar MRI，macOS 保留 libtool，并让失败直接传播。审查时已在 Omarchy 独立验证其合并宏的归档成员与失败退出行为。本分支已复用该宏和 `cd` 失败处理，并保留嵌套子模块初始化、编译选项传递、链接顺序、glog 生命周期与完整打包流程，避免重复维护两套合并实现。

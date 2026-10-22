@@ -20,6 +20,14 @@ prefix ?= $(project_root)
 
 OS_NAME = $(shell uname)
 
+# Merge static archives: $(call merge_static,OUT,INPUTS).
+# Use Apple libtool on macOS and GNU ar MRI on Linux.
+ifeq ($(OS_NAME),Darwin)
+merge_static = libtool -static -o "$(1)" $(2)
+else
+merge_static = { echo "CREATE $(1)"; for lib in $(2); do echo "ADDLIB $$lib"; done; echo SAVE; echo END; } | ar -M
+endif
+
 predict_deps = ctranslate2
 
 .PHONY: all clean clean-dist $(predict_deps)
@@ -35,7 +43,7 @@ clean-dist:
 	rm -rf $(prefix)/include/ctranslate2 || true
 
 ctranslate2:
-	cd $(deps_dir)/CTranslate2; \
+	cd "$(deps_dir)/CTranslate2" && \
 	cmake . -B$(build) \
 	-DBUILD_SHARED_LIBS:BOOL=OFF \
 	-DBUILD_CLI:BOOL=OFF \
@@ -64,26 +72,10 @@ ctranslate2:
 	set -eu; \
 	ruy_dir="$(deps_dir)/CTranslate2/$(build)/third_party/ruy"; \
 	if [ -d "$$ruy_dir/ruy" ]; then \
-		if [ "$(OS_NAME)" = Darwin ]; then \
-		libtool -static -o "$(prefix)/lib/libruy.a" \
+		$(call merge_static,$(prefix)/lib/libruy.a, \
 			"$$ruy_dir/ruy"/libruy*.a \
 			"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
 			"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
-			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a"; \
-		else \
-			{ \
-				printf 'CREATE %s\n' "$(prefix)/lib/libruy.a"; \
-				for archive in "$$ruy_dir/ruy"/libruy*.a \
-					"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
-					"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
-					"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a"; do \
-					test -f "$$archive"; \
-					printf 'ADDLIB %s\n' "$$archive"; \
-				done; \
-				printf 'SAVE\nEND\n'; \
-			} > "$(prefix)/lib/ruy.mri"; \
-			$(AR) -M < "$(prefix)/lib/ruy.mri"; \
-			rm "$(prefix)/lib/ruy.mri"; \
-		fi; \
-		echo "Installed libruy.a to $(prefix)/lib/"; \
+			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a") \
+		&& echo "Installed libruy.a to $(prefix)/lib/"; \
 	fi
