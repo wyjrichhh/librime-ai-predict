@@ -59,7 +59,7 @@ makepkg --syncdeps --log
 
 日志由 `makepkg --log` 保存在打包目录，失败时应检查完整日志，不只看最后的退出码。
 
-本改动尚未合并 main 时，clone 后需先运行 `git checkout codex/arch-fcitx5-packaging-20261022`，再进入 `packaging/arch`。每次修改后应将新提交发布到该测试分支，并让构建机 fetch、检出和核对同一 SHA。
+开发分支上的修改须先提交并推送，再让构建机 fetch、检出和核对同一 SHA；构建机外层配方仓库与 makepkg 的 `src/plugin` 必须指向同一提交。若后者的 origin 指向旧本地镜像，应从公开仓库显式 fetch 目标提交，不能把缓存分支名当作最新源码。
 
 ## 检查构建产物
 
@@ -167,3 +167,5 @@ AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。�
 ## 与 PR #2 的整合
 
 [PR #2](https://github.com/wyjrichhh/librime-ai-predict/pull/2) 修复了相同的 Linux RUY 静态归档合并问题：Linux 使用 GNU ar MRI，macOS 保留 libtool，并让失败直接传播。审查时已在 Omarchy 独立验证其合并宏的归档成员与失败退出行为。本分支已复用该宏和 `cd` 失败处理，并保留嵌套子模块初始化、编译选项传递、链接顺序、glog 生命周期与完整打包流程，避免重复维护两套合并实现。
+
+PR #2 合并后，整合提交 `e57d2bda921f2e1c5a6957e269e1e0f552a87241` 在 Omarchy 完成增量编译、两轮部署 / 推理 / 刷新 / 提交 / 重新初始化自检及打包，退出码为 0，生成 `fcitx5-rime-ai-predict-0.1.0.r48.ge57d2bd-1-aarch64.pkg.tar.xz`。日志为 `~/build/librime-ai-predict-audit/package-build-integrated-final.log`。
