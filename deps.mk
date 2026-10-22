@@ -20,6 +20,14 @@ prefix ?= $(project_root)
 
 OS_NAME = $(shell uname)
 
+# 把多个静态库合并成一个：$(call merge_static,OUT,INPUTS)
+# macOS 的 libtool 原生支持 -static；GNU libtool 不认 -static，改用 ar 的 MRI 脚本。
+ifeq ($(OS_NAME),Darwin)
+merge_static = libtool -static -o "$(1)" $(2)
+else
+merge_static = { echo "CREATE $(1)"; for lib in $(2); do echo "ADDLIB $$lib"; done; echo SAVE; echo END; } | ar -M
+endif
+
 predict_deps = ctranslate2
 
 .PHONY: all clean clean-dist $(predict_deps)
@@ -35,7 +43,7 @@ clean-dist:
 	rm -rf $(prefix)/include/ctranslate2 || true
 
 ctranslate2:
-	cd $(deps_dir)/CTranslate2; \
+	cd "$(deps_dir)/CTranslate2" && \
 	cmake . -B$(build) \
 	-DBUILD_SHARED_LIBS:BOOL=OFF \
 	-DBUILD_CLI:BOOL=OFF \
@@ -61,10 +69,10 @@ ctranslate2:
 	@# 放进 prefix/lib，插件的 find_library(RUY_LIBRARY) 才找得到。
 	ruy_dir="$(deps_dir)/CTranslate2/$(build)/third_party/ruy"; \
 	if [ -d "$$ruy_dir/ruy" ]; then \
-		libtool -static -o "$(prefix)/lib/libruy.a" \
+		$(call merge_static,$(prefix)/lib/libruy.a, \
 			"$$ruy_dir/ruy"/libruy*.a \
 			"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
 			"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
-			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a" 2>/dev/null; \
-		echo "Installed libruy.a to $(prefix)/lib/"; \
+			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a") \
+		&& echo "Installed libruy.a to $(prefix)/lib/"; \
 	fi
