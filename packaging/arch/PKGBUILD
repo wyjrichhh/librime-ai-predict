@@ -1,0 +1,104 @@
+# Build from a committed, published checkout of librime-ai-predict.
+pkgname=fcitx5-rime-ai-predict
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Fcitx5 Rime frontend with local AI prediction, model and Pinyin schema'
+arch=('aarch64' 'x86_64')
+url='https://github.com/wyjrichhh/librime-ai-predict'
+license=('BSD-3-Clause' 'LGPL-2.1-or-later' 'GPL-2.0-or-later' 'MIT' 'Apache-2.0')
+depends=('fcitx5>=5.1.22' 'rime-luna-pinyin' 'rime-prelude' 'rime-essay'
+         'boost-libs' 'google-glog' 'yaml-cpp' 'gflags' 'leveldb' 'marisa'
+         'opencc' 'glibc' 'gcc-libs')
+makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'boost'
+             'nlohmann-json' 'pkgconf')
+provides=('fcitx5-rime=5.1.17')
+conflicts=('fcitx5-rime' 'bangke-pinyin')
+
+# The recipe lives in the plugin repository; pin the source to that checkout.
+_plugin_commit=$(git -C "$startdir/../.." rev-parse --verify HEAD) || exit 1
+_rime_commit=1b3417d2b6a11b5e50e0e1fa9dc396056aa11dce
+_fcitx_commit=f5048611ea60e53955d5f013f608551e85d38f09
+_private_libdir=lib/fcitx5-rime-ai-predict
+source=("plugin::git+https://github.com/wyjrichhh/librime-ai-predict.git#commit=$_plugin_commit"
+        "librime::git+https://github.com/rime/librime.git#commit=$_rime_commit"
+        "fcitx5-rime::git+https://github.com/fcitx/fcitx5-rime.git#commit=$_fcitx_commit"
+        'zh-base-ct2-int8.tar.gz::https://github.com/wyjrichhh/librime-ai-predict/releases/download/model-v1/zh-base-ct2-int8.tar.gz')
+sha256sums=('SKIP' 'SKIP' 'SKIP'
+            '667d7f5e3c87073593e890299e917a28d45505e2c023692ac91e1b08354690d4')
+noextract=('zh-base-ct2-int8.tar.gz')
+
+pkgver() {
+    cd "$srcdir/plugin"
+    printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+    cd "$srcdir/plugin"
+    git submodule update --init deps/CTranslate2
+    git -C deps/CTranslate2 submodule update --init \
+        third_party/spdlog third_party/cpu_features third_party/ruy
+    git -C deps/CTranslate2/third_party/ruy submodule update --init --recursive third_party/cpuinfo
+    ln -sfn "$srcdir/plugin" "$srcdir/librime/plugins/ai-predict"
+    patch --forward -d "$srcdir/fcitx5-rime" -p1 < packaging/arch/fcitx5-refresh.patch
+    mkdir -p "$srcdir/model"
+    bsdtar -xf "$srcdir/zh-base-ct2-int8.tar.gz" -C "$srcdir/model"
+}
+
+build() {
+    cd "$srcdir/plugin"
+    make -f deps.mk
+
+    cmake -S "$srcdir/librime" -B "$srcdir/build-rime" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR="$_private_libdir" \
+        -DBUILD_SHARED_LIBS=ON -DBUILD_MERGED_PLUGINS=ON \
+        -DBUILD_TEST=OFF -DBUILD_DATA=OFF
+    cmake --build "$srcdir/build-rime"
+    DESTDIR="$srcdir/rime-stage" cmake --install "$srcdir/build-rime"
+
+    cmake -S "$srcdir/fcitx5-rime" -B "$srcdir/build-fcitx" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib \
+        -DCMAKE_INSTALL_RPATH="/usr/$_private_libdir" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS -I$srcdir/rime-stage/usr/include" \
+        -DRIME_TARGET="$srcdir/rime-stage/usr/$_private_libdir/librime.so" \
+        -DRime_VERSION=1.17.0 -DRIME_DATA_DIR=/usr/share/rime-data
+    cmake --build "$srcdir/build-fcitx"
+}
+
+check() {
+    # Verify the plugin was merged and the frontend has the private lookup path.
+    nm -D -C "$srcdir/build-rime/lib/librime.so" | grep -F 'rime_require_module_ai_predict()'
+    readelf -d "$srcdir/build-fcitx/bin/librime.so" | grep -F '/usr/lib/fcitx5-rime-ai-predict'
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install "$srcdir/build-fcitx"
+    install -d "$pkgdir/usr/$_private_libdir"
+    cp -a "$srcdir/rime-stage/usr/$_private_libdir/"librime.so* "$pkgdir/usr/$_private_libdir/"
+
+    local vocab model_dir
+    vocab=$(find "$srcdir/model" -name shared_vocabulary.json -type f -print -quit)
+    test -n "$vocab"
+    model_dir=$(dirname "$vocab")
+    test -f "$model_dir/model.bin"
+    test -f "$model_dir/config.json"
+    install -d "$pkgdir/usr/share/rime-data/predict_models/zh-base-ct2-int8"
+    cp -a "$model_dir/." "$pkgdir/usr/share/rime-data/predict_models/zh-base-ct2-int8/"
+    install -Dm644 "$srcdir/plugin/packaging/arch/ai_pinyin.schema.yaml" \
+        "$pkgdir/usr/share/rime-data/ai_pinyin.schema.yaml"
+    install -Dm644 "$srcdir/plugin/docs/arch-fcitx5.md" \
+        "$pkgdir/usr/share/doc/$pkgname/arch-fcitx5.md"
+
+    install -Dm644 "$srcdir/plugin/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/plugin"
+    install -Dm644 "$srcdir/librime/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/librime"
+    local dependency
+    for dependency in deps/CTranslate2 deps/CTranslate2/third_party/spdlog \
+        deps/CTranslate2/third_party/cpu_features deps/CTranslate2/third_party/ruy \
+        deps/CTranslate2/third_party/ruy/third_party/cpuinfo \
+        deps/CTranslate2/third_party/ruy/third_party/cpuinfo/deps/clog; do
+        install -Dm644 "$srcdir/plugin/$dependency/LICENSE" \
+            "$pkgdir/usr/share/licenses/$pkgname/${dependency//\//-}"
+    done
+}

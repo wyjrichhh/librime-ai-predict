@@ -1,0 +1,23 @@
+# Inherit the packaged Luna Pinyin dictionary and behavior.
+__include: luna_pinyin.schema:/
+__patch:
+  schema/schema_id: ai_pinyin
+  schema/name: AI 拼音
+  schema/version: '0.1.0'
+  switches/@2/reset: 1
+  recognizer/patterns/uppercase: "[A-Z][-_+.'0-9A-Z]*$"
+  engine/translators/@before 0: ai_predict_translator
+  engine/filters/@next: ai_predict_filter
+  ai_predict:
+    enabled: true
+    model_path: /usr/share/rime-data/predict_models/zh-base-ct2-int8
+    min_input_length: 12
+    min_context_prompt_length: 2
+    context_window_size: 10
+    debounce_ms: 200
+    max_tokens: 64
+    device: cpu
+    target_index: 1
+    search_range: 10
+    quality: -1
+    min_hanzi: 2

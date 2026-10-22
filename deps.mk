@@ -1,4 +1,4 @@
-# Build CTranslate2 as a static library for librime-predict.
+# Build CTranslate2 as a static library for librime-ai-predict.
 #
 # Static linking ensures the plugin (.dylib/.so) is self-contained:
 # users don't need to install CTranslate2 separately.
@@ -45,7 +45,7 @@ ctranslate2:
 	-DWITH_OPENBLAS:BOOL=OFF \
 	-DWITH_RUY:BOOL=ON \
 	-DWITH_ACCELERATE:BOOL=$(if $(filter Darwin,$(OS_NAME)),ON,OFF) \
-	-DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5 \
+	-DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.10 \
 	-DOPENMP_RUNTIME:STRING="NONE" \
 	-DCMAKE_BUILD_TYPE:STRING="Release" \
 	-DCMAKE_INSTALL_PREFIX:PATH="$(prefix)" \
@@ -57,14 +57,31 @@ ctranslate2:
 		cp "$(deps_dir)/CTranslate2/$(build)/third_party/cpu_features/libcpu_features.a" "$(prefix)/lib/"; \
 		echo "Installed cpu_features.a to $(prefix)/lib/"; \
 	fi
-	@# WITH_RUY 时 ruy 被编成数十个子归档，而静态库不吸收依赖；合并成一个 libruy.a
-	@# 放进 prefix/lib，插件的 find_library(RUY_LIBRARY) 才找得到。
+	@# Static libraries do not absorb RUY's transitive archive dependencies.
+	@# Merge them with Apple's libtool on macOS and GNU ar's MRI mode on Linux.
+	set -eu; \
 	ruy_dir="$(deps_dir)/CTranslate2/$(build)/third_party/ruy"; \
 	if [ -d "$$ruy_dir/ruy" ]; then \
+		if [ "$(OS_NAME)" = Darwin ]; then \
 		libtool -static -o "$(prefix)/lib/libruy.a" \
 			"$$ruy_dir/ruy"/libruy*.a \
 			"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
 			"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
-			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a" 2>/dev/null; \
+			"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a"; \
+		else \
+			{ \
+				printf 'CREATE %s\n' "$(prefix)/lib/libruy.a"; \
+				for archive in "$$ruy_dir/ruy"/libruy*.a \
+					"$$ruy_dir/ruy/profiler/libruy_profiler_instrumentation.a" \
+					"$$ruy_dir/third_party/cpuinfo/libcpuinfo.a" \
+					"$$ruy_dir/third_party/cpuinfo/deps/clog/libclog.a"; do \
+					test -f "$$archive"; \
+					printf 'ADDLIB %s\n' "$$archive"; \
+				done; \
+				printf 'SAVE\nEND\n'; \
+			} > "$(prefix)/lib/ruy.mri"; \
+			$(AR) -M < "$(prefix)/lib/ruy.mri"; \
+			rm "$(prefix)/lib/ruy.mri"; \
+		fi; \
 		echo "Installed libruy.a to $(prefix)/lib/"; \
 	fi

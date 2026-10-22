@@ -50,8 +50,8 @@ find_library(RUY_LIBRARY NAMES ruy
   PATHS "${CTRANSLATE2_ROOT}/lib" NO_DEFAULT_PATH
 )
 if(RUY_LIBRARY)
-  # ruy 依赖 cpuinfo 符号，静态库按序解析：ruy 必须排在 cpu_features 之前
-  list(INSERT CTRANSLATE2_LIBRARIES 0 ${RUY_LIBRARY})
+  # Static linkers resolve left to right: CT2 needs RUY, then CPU features.
+  list(INSERT CTRANSLATE2_LIBRARIES 1 ${RUY_LIBRARY})
 endif()
 if(APPLE)
   find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)

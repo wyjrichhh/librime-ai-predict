@@ -17,6 +17,8 @@
 
 namespace {
 
+bool owns_logging = false;
+
 // Every external librime plugin statically links its own copy of glog, so the
 // process holds two glog instances that can't see each other. This is by
 // design -- the librime maintainers won't change the main project's linking
@@ -57,6 +59,7 @@ void EnsurePluginLoggingInitialized() {
   google::SetLogSymlink(google::GLOG_ERROR, app_name.c_str());
   FLAGS_logfile_mode = 0600;
   google::InitGoogleLogging(app_name.c_str());
+  owns_logging = true;
 }
 
 }  // namespace
@@ -72,8 +75,9 @@ static void rime_ai_predict_initialize() {
 }
 
 static void rime_ai_predict_finalize() {
-  if (google::IsGoogleLoggingInitialized()) {
+  if (owns_logging) {
     google::ShutdownGoogleLogging();
+    owns_logging = false;
   }
 }
 

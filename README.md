@@ -47,7 +47,11 @@
 
 安装包做了什么：先把现有 `~/Library/Rime/` 完整备份到 `~/Library/Rime.backup-<时间戳>/`，然后覆盖 `default.custom.yaml` / `luna_pinyin.custom.yaml`（接入 `ai_predict` 引擎、默认简体朙月拼音），铺设扩展词库与神经网络模型，并自动部署。**会保留**你的 `user.yaml`、`*.userdb`（学习记忆）和其它方案的 `*.custom.yaml`。如需还原，删除新配置、从备份目录拷回即可。
 
-## 从源码构建（进阶 / 非 macOS / Intel / 想要通用架构）
+## Arch Linux / Omarchy：Fcitx5 输入法打包
+
+Linux 使用 Fcitx5-Rime 前端。完整包的构建步骤、依赖、模型与方案配置、验证方法及问题记录见 [Arch Linux / Omarchy 打包文档](docs/arch-fcitx5.md)。当前流程正在 Omarchy（Arch Linux ARM / aarch64）上验证；文档会明确区分已验证步骤与待验证步骤。
+
+## 从源码构建（macOS / Intel / 想要通用架构）
 
 从零编译鼠须管 master（已含 [#1143](https://github.com/rime/squirrel/pull/1143)）连同本插件。在空目录 `~/work/` 下从零开始：
 
@@ -99,6 +103,14 @@ make deps && make && sudo make install
 ai_predict:
   model_path: predict_models/zh-base-ct2-int8
 ```
+
+上面的默认目录用于 macOS。Linux 上手动下载时必须指定前端的数据目录，例如 Fcitx5：
+
+```bash
+RIME_USER_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/rime" ./scripts/download_model.sh
+```
+
+Arch 完整包已将模型放到系统共享目录，使用随包提供的 `ai_pinyin` 方案时无需再次下载。
 
 如需指向自建镜像：`MODEL_URL=https://your-mirror/.../zh-base-ct2-int8.tar.gz ./scripts/download_model.sh`
 
