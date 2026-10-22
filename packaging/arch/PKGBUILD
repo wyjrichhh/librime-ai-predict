@@ -52,6 +52,7 @@ build() {
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR="$_private_libdir" \
+        -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON \
         -DBUILD_SHARED_LIBS=ON -DBUILD_MERGED_PLUGINS=ON \
         -DBUILD_TEST=OFF -DBUILD_DATA=OFF
     cmake --build "$srcdir/build-rime"
@@ -59,18 +60,21 @@ build() {
 
     cmake -S "$srcdir/fcitx5-rime" -B "$srcdir/build-fcitx" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.10 \
         -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib \
         -DCMAKE_INSTALL_RPATH="/usr/$_private_libdir" \
         -DCMAKE_CXX_FLAGS="$CXXFLAGS -I$srcdir/rime-stage/usr/include" \
         -DRIME_TARGET="$srcdir/rime-stage/usr/$_private_libdir/librime.so" \
         -DRime_VERSION=1.17.0 -DRIME_DATA_DIR=/usr/share/rime-data
     cmake --build "$srcdir/build-fcitx"
+    DESTDIR="$srcdir/frontend-stage" cmake --install "$srcdir/build-fcitx"
 }
 
 check() {
     # Verify the plugin was merged and the frontend has the private lookup path.
     nm -D -C "$srcdir/build-rime/lib/librime.so" | grep -F 'rime_require_module_ai_predict()'
-    readelf -d "$srcdir/build-fcitx/bin/librime.so" | grep -F '/usr/lib/fcitx5-rime-ai-predict'
+    readelf -d "$srcdir/frontend-stage/usr/lib/fcitx5/librime.so" | \
+        grep -F '[/usr/lib/fcitx5-rime-ai-predict]'
 
     local vocab
     vocab=$(find "$srcdir/model" -name shared_vocabulary.json -type f -print -quit)
@@ -82,11 +86,11 @@ check() {
         -lrime -ldl -pthread -o "$srcdir/smoke-test"
     "$srcdir/smoke-test" /usr/share/rime-data "$srcdir/smoke-user" \
         "$srcdir/plugin/packaging/arch/ai_pinyin.schema.yaml" "$(dirname "$vocab")" \
-        "$srcdir/build-fcitx/bin/librime.so"
+        "$srcdir/frontend-stage/usr/lib/fcitx5/librime.so"
 }
 
 package() {
-    DESTDIR="$pkgdir" cmake --install "$srcdir/build-fcitx"
+    cp -a "$srcdir/frontend-stage/." "$pkgdir/"
     install -d "$pkgdir/usr/$_private_libdir"
     cp -a "$srcdir/rime-stage/usr/$_private_libdir/"librime.so* "$pkgdir/usr/$_private_libdir/"
 
