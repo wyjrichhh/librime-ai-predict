@@ -121,6 +121,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | 包内泄漏构建目录 | 首轮前后端均编译链接成功，但 makepkg 检测随包编译的 librime 包含 `$srcdir`。新增编译器文件路径映射，将 `__FILE__` 中的临时源码路径映射到 `/usr/src/debug/fcitx5-rime-ai-predict`，并让依赖构建显式采用打包器的编译选项，待重新构建验证。 |
 | CTranslate2 / spdlog 编译警告 | 补齐 cpuinfo 后，基线在 GCC 16.1.1 下出现 stringop-overread（cpuinfo）、array-bounds（CT2 decoding）、dangling-reference（spdlog/fmt），以及 unused-parameter、comment、implicit-fallthrough、reorder、maybe-uninitialized 等警告；完整日志保留在远端。来源和运行影响仍需逐项核查，不能声明构建无警告。 |
 | 上游前端不处理刷新通知 | 固定的 Fcitx5-Rime 提交未处理 `property/_refresh_ui`；包附补丁在事件循环中更新匹配会话的聚焦输入框，待运行验证。 |
+| 刷新通知的封装格式判断错误 | 运行中模型已输出「今天天气很好」，但自检超时。核对官方 librime 的 `ConcreteEngine::OnPropertyUpdate` 后确认通知值为 `_refresh_ui=source=ai_predict&kind=full`，而不是裸 `_refresh_ui`。已修正前端补丁和自检对属性键的匹配，待复测。 |
 | 插件可能关闭宿主的 glog | 基线 finalize 不区分 glog 所有权。修订仅关闭插件自己初始化的实例，待部署和退出测试。 |
 | 已有输入法包冲突 | Omarchy 预装 `bangke-pinyin 5.0.19-12`，提供并冲突于 `fcitx5-rime`。新 PKGBUILD 显式声明冲突；目前没有卸载或替换它。 |
 | 方案能打包但不能部署 | 首版包完整生成，但运行自检报 `invalid schema definition`。原因是 SchemaUpdate 在展开 `__include` / `__patch` 前先读取原文件的 `schema/schema_id`；已将方案元数据放到顶层，并为继承的反查方案显式声明 rime-stroke 依赖，待复测。自检也增加部署失败和编译后模型路径检查，避免仅凭 select_schema 返回值判断成功。 |

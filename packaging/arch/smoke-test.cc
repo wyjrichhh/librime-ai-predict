@@ -25,7 +25,7 @@ std::atomic<bool> deployment_failed{false};
 
 void Notify(void*, RimeSessionId, const char* type, const char* value) {
   if (std::strcmp(type, "property") == 0 &&
-      std::strcmp(value, "_refresh_ui") == 0) {
+      std::strncmp(value, "_refresh_ui=", 12) == 0) {
     refreshed.store(true, std::memory_order_release);
   }
   if (std::strcmp(type, "deploy") == 0 &&

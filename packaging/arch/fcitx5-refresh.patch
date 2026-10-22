@@ -1,12 +1,13 @@
 diff --git a/src/rimeengine.cpp b/src/rimeengine.cpp
-index c762aa1..f813344 100644
+index c762aa1..b307985 100644
 --- a/src/rimeengine.cpp
 +++ b/src/rimeengine.cpp
-@@ -584,6 +584,19 @@ void RimeEngine::notify(RimeSessionId session, const std::string &messageType,
+@@ -584,6 +584,20 @@ void RimeEngine::notify(RimeSessionId session, const std::string &messageType,
                          "See log for details.");
              blockMessage = true;
          }
-+    } else if (messageType == "property" && messageValue == "_refresh_ui") {
++    } else if (messageType == "property" &&
++               messageValue.compare(0, 12, "_refresh_ui=") == 0) {
 +        // Rime notifications may originate on a prediction worker. notify()
 +        // runs on Fcitx's event loop through eventDispatcher_.
 +        instance_->inputContextManager().foreachFocused(
