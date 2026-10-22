@@ -80,17 +80,7 @@ target_include_directories(rime-ai-predict-objs PRIVATE
 )
 target_link_libraries(rime-ai-predict-objs PRIVATE ${CTRANSLATE2_LIBRARIES})
 
-# glog 0.7+ headers require these macros (same idea as librime/CMakeLists.txt).
-if(WIN32)
-  target_compile_definitions(rime-ai-predict-objs PRIVATE
-    "GLOG_DEPRECATED=__declspec(deprecated)"
-    GLOG_NO_ABBREVIATED_SEVERITIES)
-else()
-  target_compile_definitions(rime-ai-predict-objs PRIVATE
-    "GLOG_DEPRECATED=__attribute__((deprecated))"
-    "GLOG_EXPORT="
-    "GLOG_NO_EXPORT=")
-endif()
+# Inherit glog import/export definitions from librime for its selected linkage.
 
 set(plugin_name ${plugin_library} PARENT_SCOPE)
 set(plugin_objs $<TARGET_OBJECTS:rime-ai-predict-objs> PARENT_SCOPE)

@@ -116,6 +116,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | CMake 弃用警告 | 基线将最低策略版本设为 3.5；CMake 4.4.4 提示将移除低于 3.10 的兼容行为。修订提高到 3.10，待重新验证各依赖。 |
 | 静态归档合并使用 macOS 工具 | 补齐 cpuinfo 后基线构建退出码为 0，但 GNU libtool 输出 Usage，`lib/` 仅有 `libctranslate2.a`，没有必需的 `libruy.a`；后续 echo 错误宣称安装成功。修订为 macOS 使用 libtool、Linux 使用 GNU ar MRI，并保留错误，待运行验证。 |
 | 静态库链接顺序不正确 | CMake 将 RUY 放在 CT2 前面，Linux 静态链接可能无法解析 CT2 对 RUY 的引用；修订为 CT2、RUY、CPU features 顺序，待验证。 |
+| glog 导出宏重复定义 | 首次完整构建发现插件将宿主为共享 glog 设置的 `GLOG_EXPORT` / `GLOG_NO_EXPORT` 覆盖为空，产生重定义警告。修订为继承 librime 按实际链接方式设置的宏，待重新编译验证。 |
 | CTranslate2 / spdlog 编译警告 | 补齐 cpuinfo 后，基线在 GCC 16.1.1 下出现 stringop-overread（cpuinfo）、array-bounds（CT2 decoding）、dangling-reference（spdlog/fmt），以及 unused-parameter、comment、implicit-fallthrough、reorder、maybe-uninitialized 等警告；完整日志保留在远端。来源和运行影响仍需逐项核查，不能声明构建无警告。 |
 | 上游前端不处理刷新通知 | 固定的 Fcitx5-Rime 提交未处理 `property/_refresh_ui`；包附补丁在事件循环中更新匹配会话的聚焦输入框，待运行验证。 |
 | 插件可能关闭宿主的 glog | 基线 finalize 不区分 glog 所有权。修订仅关闭插件自己初始化的实例，待部署和退出测试。 |
