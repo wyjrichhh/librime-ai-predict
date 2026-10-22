@@ -46,10 +46,13 @@ prepare() {
 
 build() {
     cd "$srcdir/plugin"
+    export CFLAGS="$CFLAGS -ffile-prefix-map=$srcdir=/usr/src/debug/$pkgname"
+    export CXXFLAGS="$CXXFLAGS -ffile-prefix-map=$srcdir=/usr/src/debug/$pkgname"
     make -f deps.mk
 
     cmake -S "$srcdir/librime" -B "$srcdir/build-rime" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR="$_private_libdir" \
         -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON \
