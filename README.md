@@ -49,7 +49,7 @@
 
 ## Arch Linux / Omarchy：Fcitx5 输入法打包
 
-Linux 使用 Fcitx5-Rime 前端。完整包的构建步骤、依赖、模型与方案配置、验证方法及问题记录见 [Arch Linux / Omarchy 打包文档](docs/arch-fcitx5.md)。当前流程正在 Omarchy（Arch Linux ARM / aarch64）上验证；文档会明确区分已验证步骤与待验证步骤。
+Linux 使用 Fcitx5-Rime 前端。完整包的构建步骤、依赖、模型与方案配置、验证方法及问题记录见 [Arch Linux / Omarchy 打包文档](docs/arch-fcitx5.md)。已在 Omarchy（Arch Linux ARM / aarch64）实际编译前端、官方 librime 与 AI 插件、CTranslate2 / RUY 静态库，生成完整安装包并通过真实模型推理自检。系统安装、桌面输入和 x86_64 尚未验收；上游编译与词库部署警告见该文档。
 
 ## 从源码构建（macOS / Intel / 想要通用架构）
 
