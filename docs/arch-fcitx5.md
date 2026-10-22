@@ -129,7 +129,8 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | makepkg 调试包工具缺失 | 检查发现缺少 debugedit，已通过 pacman 安装，保留默认调试信息处理流程。 |
 | 安装 base-devel 时镜像返回 404 | `texinfo-7.3-1-aarch64.pkg.tar.xz` 返回 404，整个安装事务失败，未升级任何包。后续单独安装上述可用构建依赖成功。base-devel 元包仍未安装；不能将当前环境称为干净的 base-devel 验证环境。文档提供完整更新后安装的标准流程，镜像一致性仍需确认。 |
 | 首次 `make deps` 失败 | 基线提交 `5ee4dc5` 下 CMake 报 `ruy_cpuinfo` 引用不存在的 `cpuinfo::cpuinfo`。原因是 Makefile 未初始化 RUY 的嵌套 cpuinfo；已加入初始化命令，后续构建通过。 |
-| CMake 弃用和策略警告 | 依赖与前端的最低策略版本提高到 3.10，librime 查找 Boost 时优先使用其配置包；重新构建不再出现相关 CMake 警告。 |
+| CMake 弃用和策略警告 | 依赖与前端的最低策略版本提高到 3.10，针对 Boost 设置 CMP0167=NEW，保留其他依赖使用 librime 的查找模块。 |
+| 空目录构建缺少 glog 链接项 | 首次空目录复验发现，全局 `CMAKE_FIND_PACKAGE_PREFER_CONFIG=ON` 会选择 glog / gflags 的配置包，但它们不提供 librime 使用的旧式 `Glog_LIBRARY` 等变量。旧构建缓存保留了这些变量，掩盖了问题。已移除全局优先策略，仅为 Boost 设置新策略；必须清空 CMake 配置缓存后复测，不能仅以增量构建通过为准。失败日志为 `package-build-clean.log`。 |
 | 静态归档合并使用 macOS 工具 | 基线 GNU libtool 失败后 echo 仍错误报告成功。Linux 改用 GNU ar MRI，生成包含 47 个成员的 RUY 归档；Linux 构建和真实推理均通过。macOS 分支保留 Apple libtool，本次未重新构建 macOS。 |
 | 静态库链接顺序不正确 | 改为 CT2、RUY、CPU features 的顺序，后端链接及真实推理通过。 |
 | glog 导出宏重复定义 | 插件原先将宿主为共享 glog 设置的导出宏覆盖为空。现继承 librime 的设置，重新编译无重定义警告。 |
