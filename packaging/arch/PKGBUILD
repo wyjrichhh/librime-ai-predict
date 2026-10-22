@@ -1,7 +1,7 @@
 # Build from a committed, published checkout of librime-ai-predict.
 pkgname=fcitx5-rime-ai-predict
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Fcitx5 Rime frontend with local AI prediction, model and Pinyin schema'
 arch=('aarch64' 'x86_64')
 url='https://github.com/wyjrichhh/librime-ai-predict'
@@ -12,7 +12,7 @@ depends=('fcitx5>=5.1.22' 'rime-luna-pinyin' 'rime-prelude' 'rime-essay' 'rime-s
 makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'boost'
              'nlohmann-json' 'pkgconf')
 provides=('fcitx5-rime=5.1.17')
-conflicts=('fcitx5-rime' 'bangke-pinyin')
+conflicts=('fcitx5-rime')
 
 # The recipe lives in the plugin repository; pin the source to that checkout.
 _plugin_commit=$(git -C "$startdir/../.." rev-parse --verify HEAD) || exit 1
