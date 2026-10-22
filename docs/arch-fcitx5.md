@@ -69,7 +69,9 @@ pacman -Qlp ./fcitx5-rime-ai-predict-*.pkg.tar.zst
 
 如启用了 makepkg 的 debug 包，使用 `makepkg --packagelist` 列出的主包准确路径执行检查和安装，不要把 debug 包误当作主包。
 
-必须检查前端、私有 librime、模型和方案均在包内，且没有 `/home/`、构建临时目录或用户配置文件。再解包检查 ELF 架构、RPATH 与共享库依赖，确认不是意外链接到测试机器上 `bangke-pinyin` 的私有库。PKGBUILD 的 `check()` 只做插件符号和 RPATH 检查，不能替代运行验收。
+必须检查前端、私有 librime、模型和方案均在包内，且没有 `/home/`、构建临时目录或用户配置文件。再解包检查 ELF 架构、RPATH 与共享库依赖，确认不是意外链接到测试机器上 `bangke-pinyin` 的私有库。
+
+PKGBUILD 的 `check()` 检查插件符号、前端 RPATH，并编译运行 `smoke-test.cc`：加载前端 ELF、在独立 Rime 数据目录部署方案、运行真实模型推理、等待异步刷新通知、检查候选和提交，再完整初始化第二次以检查重载。该测试不启动桌面 Fcitx5 UI，不能代替真实桌面输入验收。
 
 ## 安装与用户配置
 
@@ -108,6 +110,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | --- | --- |
 | README 的「非 macOS」构建步骤实际上依赖 Xcode / brew / Squirrel | 已更正入口，Arch 使用本文的 Fcitx5 流程。 |
 | 构建依赖未安装 | 已安装 cmake、ninja、extra-cmake-modules、boost、nlohmann-json；其余运行库已存在于测试机器。 |
+| makepkg 调试包工具缺失 | 检查发现缺少 debugedit，已通过 pacman 安装，保留默认调试信息处理流程。 |
 | 安装 base-devel 时镜像返回 404 | `texinfo-7.3-1-aarch64.pkg.tar.xz` 返回 404，整个安装事务失败，未升级任何包。后续单独安装上述可用构建依赖成功。base-devel 元包仍未安装；不能将当前环境称为干净的 base-devel 验证环境。文档提供完整更新后安装的标准流程，镜像一致性仍需确认。 |
 | 首次 `make deps` 失败 | 基线提交 `5ee4dc5` 下 CMake 报 `ruy_cpuinfo` 引用不存在的 `cpuinfo::cpuinfo`。原因是 Makefile 未初始化 RUY 的嵌套 cpuinfo；本地修订加入初始化命令，待发布后复测。 |
 | CMake 弃用警告 | 基线将最低策略版本设为 3.5；CMake 4.4.4 提示将移除低于 3.10 的兼容行为。修订提高到 3.10，待重新验证各依赖。 |

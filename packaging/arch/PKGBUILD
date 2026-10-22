@@ -71,6 +71,18 @@ check() {
     # Verify the plugin was merged and the frontend has the private lookup path.
     nm -D -C "$srcdir/build-rime/lib/librime.so" | grep -F 'rime_require_module_ai_predict()'
     readelf -d "$srcdir/build-fcitx/bin/librime.so" | grep -F '/usr/lib/fcitx5-rime-ai-predict'
+
+    local vocab
+    vocab=$(find "$srcdir/model" -name shared_vocabulary.json -type f -print -quit)
+    test -n "$vocab"
+    c++ -std=c++17 -Wall -Wextra \
+        -I"$srcdir/rime-stage/usr/include" \
+        "$srcdir/plugin/packaging/arch/smoke-test.cc" \
+        -L"$srcdir/build-rime/lib" -Wl,-rpath,"$srcdir/build-rime/lib" \
+        -lrime -ldl -pthread -o "$srcdir/smoke-test"
+    "$srcdir/smoke-test" /usr/share/rime-data "$srcdir/smoke-user" \
+        "$srcdir/plugin/packaging/arch/ai_pinyin.schema.yaml" "$(dirname "$vocab")" \
+        "$srcdir/build-fcitx/bin/librime.so"
 }
 
 package() {
