@@ -124,6 +124,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | 插件可能关闭宿主的 glog | 基线 finalize 不区分 glog 所有权。修订仅关闭插件自己初始化的实例，待部署和退出测试。 |
 | 已有输入法包冲突 | Omarchy 预装 `bangke-pinyin 5.0.19-12`，提供并冲突于 `fcitx5-rime`。新 PKGBUILD 显式声明冲突；目前没有卸载或替换它。 |
 | 方案能打包但不能部署 | 首版包完整生成，但运行自检报 `invalid schema definition`。原因是 SchemaUpdate 在展开 `__include` / `__patch` 前先读取原文件的 `schema/schema_id`；已将方案元数据放到顶层，并为继承的反查方案显式声明 rime-stroke 依赖，待复测。自检也增加部署失败和编译后模型路径检查，避免仅凭 select_schema 返回值判断成功。 |
+| AI 方案忽略用户自定义配置 | 补齐元数据后，方案与 stroke 均部署成功，但自检发现 `ai_pinyin.custom.yaml` 中的模型路径未生效。方案显式声明 `__patch` 后不会自动添加 custom 补丁；修订为补丁列表，并在默认设置后显式加载可选的 `ai_pinyin.custom:/patch?`，待复测。 |
 | 远端目录权限异常 | 环境检查发现 `~/.cache/dconf` 由 root 持有，权限 0700，普通用户遍历 HOME 时报 Permission denied。此目录不属于构建源码；未修改它，仍需单独处理桌面环境权限。 |
 | 本地 Ruby 校验的 PATH 权限警告 | macOS 上 `/opt/homebrew/bin` 权限为 0777，Ruby 报 Insecure world writable dir。该目录属于本机工具环境，未改权限；以仅含系统目录的 PATH 重新运行 YAML 解析成功。 |
 
