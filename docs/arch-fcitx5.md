@@ -94,7 +94,7 @@ patch:
 
 在 Fcitx5 的配置工具中添加 Rime 输入法，在 Rime 菜单中重新部署并选择「AI 拼音」。更新共享库后需要重新启动 Fcitx5 或重新登录桌面，使新进程加载新库。GTK / Qt 集成和 Wayland 输入法配置沿用 Fcitx5 / Omarchy 的系统设置。
 
-AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安装，完全离线推理。本补丁处理异步刷新；不承诺提供与鼠须管相同的候选注释配色。
+AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。如果模型输出已经是首候选，则去重并保留原首选，不额外添加 AI 行。模型已经随包安装，完全离线推理。本补丁处理异步刷新；不承诺提供与鼠须管相同的候选注释配色。
 
 ## 运行验收
 
@@ -109,7 +109,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 
 ## 实测问题记录（2026-10-22）
 
-代码与配置验证基线为插件提交 `628bd8c0494e684ff645dbf7cb193d71b275b228`，对应安装包约 205 MiB。后续文档提交会改变包版本中的 Git 短 SHA；以该次 `makepkg --packagelist`、构建日志和产物校验和为准。
+代码与配置验证基线为插件提交 `ca77262f522c3cba36147897a01626d9d869166b`，对应安装包约 205 MiB。后续文档提交会改变包版本中的 Git 短 SHA；以该次 `makepkg --packagelist`、构建日志和产物校验和为准。
 
 | 验证项 | 结果 |
 | --- | --- |
@@ -130,7 +130,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | 安装 base-devel 时镜像返回 404 | `texinfo-7.3-1-aarch64.pkg.tar.xz` 返回 404，整个安装事务失败，未升级任何包。后续单独安装上述可用构建依赖成功。base-devel 元包仍未安装；不能将当前环境称为干净的 base-devel 验证环境。文档提供完整更新后安装的标准流程，镜像一致性仍需确认。 |
 | 首次 `make deps` 失败 | 基线提交 `5ee4dc5` 下 CMake 报 `ruy_cpuinfo` 引用不存在的 `cpuinfo::cpuinfo`。原因是 Makefile 未初始化 RUY 的嵌套 cpuinfo；已加入初始化命令，后续构建通过。 |
 | CMake 弃用和策略警告 | 依赖与前端的最低策略版本提高到 3.10，针对 Boost 设置 CMP0167=NEW，保留其他依赖使用 librime 的查找模块。 |
-| 空目录构建缺少 glog 链接项 | 首次空目录复验发现，全局 `CMAKE_FIND_PACKAGE_PREFER_CONFIG=ON` 会选择 glog / gflags 的配置包，但它们不提供 librime 使用的旧式 `Glog_LIBRARY` 等变量。旧构建缓存保留了这些变量，掩盖了问题。已移除全局优先策略，仅为 Boost 设置新策略；必须清空 CMake 配置缓存后复测，不能仅以增量构建通过为准。失败日志为 `package-build-clean.log`。 |
+| 空目录构建缺少 glog 链接项 | 全局优先配置包导致首次配置不提供 librime 需要的旧式依赖变量，旧缓存掩盖了问题。改为仅对 Boost 设置新策略后，删除 CMakeCache 重新探测，确认 `Glog_LIBRARY=/usr/lib/libglog.so` 和 `Gflags_LIBRARY=/usr/lib/libgflags.so`；前后端、运行自检及打包均通过。失败日志为 `package-build-clean.log`，修复后的日志为 `package-build-clean-retry.log`。 |
 | 静态归档合并使用 macOS 工具 | 基线 GNU libtool 失败后 echo 仍错误报告成功。Linux 改用 GNU ar MRI，生成包含 47 个成员的 RUY 归档；Linux 构建和真实推理均通过。macOS 分支保留 Apple libtool，本次未重新构建 macOS。 |
 | 静态库链接顺序不正确 | 改为 CT2、RUY、CPU features 的顺序，后端链接及真实推理通过。 |
 | glog 导出宏重复定义 | 插件原先将宿主为共享 glog 设置的导出宏覆盖为空。现继承 librime 的设置，重新编译无重定义警告。 |
@@ -147,7 +147,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | 远端目录权限异常 | 环境检查发现 `~/.cache/dconf` 由 root 持有，权限 0700，普通用户遍历 HOME 时报 Permission denied。此目录不属于构建源码；未修改它，仍需单独处理桌面环境权限。 |
 | 本地 Ruby 校验的 PATH 权限警告 | macOS 上 `/opt/homebrew/bin` 权限为 0777，Ruby 报 Insecure world writable dir。该目录属于本机工具环境，未改权限；以仅含系统目录的 PATH 重新运行 YAML 解析成功。 |
 
-基线日志位于测试机 `~/build/librime-ai-predict-audit/baseline-make-deps.log` 和 `baseline-with-cpuinfo.log`。完整构建与运行自检的迭代日志为同目录的 `package-build-01.log`、`package-build-02.log`、`package-build-03.log`；第 3 轮正常产出安装包，运行日志没有 ERROR 级记录。所有源码通过 Git 获取并核对提交。
+基线日志位于测试机 `~/build/librime-ai-predict-audit/baseline-make-deps.log` 和 `baseline-with-cpuinfo.log`。完整构建与运行自检的迭代日志为同目录的 `package-build-01.log`、`package-build-02.log`、`package-build-03.log`；第 3 轮正常产出安装包。随后从空源码 / 构建目录复验，发现并修复依赖查找缓存问题，记录在 `package-build-clean.log` 和 `package-build-clean-retry.log`。最终重试退出码为 0，运行日志没有 ERROR 级记录。所有源码通过 Git 获取并核对提交。
 
 剩余上游编译警告的核查边界：Fcitx5-Rime 的 `RIME_STRUCT` 使用 `{0}`，其余成员按 C++ 聚合规则初始化为零，不是未初始化内存；CT2 的 tensor-parallel 局部变量警告位于当前 CPU 单副本路径未使用的分支。cpuinfo 的 Raspberry Pi 修正函数将长度为 9 的 revision 参数声明为至少 64 字节，实际读取使用 revision 的长度界限，声明仍不一致；spdlog/fmt 的临时 mapper、CT2 的形状边界告警尚未得到覆盖所有输入的证明。clog 忽略 write 返回值，可能丢失日志；其余还有未使用参数、初始化顺序、fallthrough 和注释警告。没有关闭这些告警，也没有把两轮推理通过当作所有上游问题已解决。
 
