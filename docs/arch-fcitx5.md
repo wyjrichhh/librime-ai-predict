@@ -28,7 +28,7 @@ Fcitx5 主程序、GTK / Qt 集成和基础词库由 pacman 安装。包通过�
 sudo pacman -Syu
 sudo pacman -S --needed base-devel git cmake ninja extra-cmake-modules boost \
   nlohmann-json fcitx5 fcitx5-gtk fcitx5-qt google-glog gflags yaml-cpp \
-  leveldb marisa opencc rime-luna-pinyin rime-prelude rime-essay
+  leveldb marisa opencc rime-luna-pinyin rime-prelude rime-essay rime-stroke
 ```
 
 使用普通用户运行 `makepkg`，不要用 sudo 构建。建议预留至少 4 GiB 构建空间，以及模型和压缩包所需空间。内存不足时降低并行度，例如 `export CMAKE_BUILD_PARALLEL_LEVEL=2`；CTranslate2 的 Makefile 还支持 `NOPARALLEL=1`。
@@ -123,6 +123,7 @@ AI 方案默认简体，AI 候选默认位于第 2 位。模型已经随包安�
 | 上游前端不处理刷新通知 | 固定的 Fcitx5-Rime 提交未处理 `property/_refresh_ui`；包附补丁在事件循环中更新匹配会话的聚焦输入框，待运行验证。 |
 | 插件可能关闭宿主的 glog | 基线 finalize 不区分 glog 所有权。修订仅关闭插件自己初始化的实例，待部署和退出测试。 |
 | 已有输入法包冲突 | Omarchy 预装 `bangke-pinyin 5.0.19-12`，提供并冲突于 `fcitx5-rime`。新 PKGBUILD 显式声明冲突；目前没有卸载或替换它。 |
+| 方案能打包但不能部署 | 首版包完整生成，但运行自检报 `invalid schema definition`。原因是 SchemaUpdate 在展开 `__include` / `__patch` 前先读取原文件的 `schema/schema_id`；已将方案元数据放到顶层，并为继承的反查方案显式声明 rime-stroke 依赖，待复测。自检也增加部署失败和编译后模型路径检查，避免仅凭 select_schema 返回值判断成功。 |
 | 远端目录权限异常 | 环境检查发现 `~/.cache/dconf` 由 root 持有，权限 0700，普通用户遍历 HOME 时报 Permission denied。此目录不属于构建源码；未修改它，仍需单独处理桌面环境权限。 |
 | 本地 Ruby 校验的 PATH 权限警告 | macOS 上 `/opt/homebrew/bin` 权限为 0777，Ruby 报 Insecure world writable dir。该目录属于本机工具环境，未改权限；以仅含系统目录的 PATH 重新运行 YAML 解析成功。 |
 

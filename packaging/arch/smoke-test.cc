@@ -21,11 +21,16 @@ namespace fs = std::filesystem;
 namespace {
 
 std::atomic<bool> refreshed{false};
+std::atomic<bool> deployment_failed{false};
 
 void Notify(void*, RimeSessionId, const char* type, const char* value) {
   if (std::strcmp(type, "property") == 0 &&
       std::strcmp(value, "_refresh_ui") == 0) {
     refreshed.store(true, std::memory_order_release);
+  }
+  if (std::strcmp(type, "deploy") == 0 &&
+      std::strcmp(value, "failure") == 0) {
+    deployment_failed.store(true, std::memory_order_release);
   }
 }
 
@@ -80,8 +85,20 @@ int main(int argc, char** argv) {
       Require(api->find_module("ai_predict") != nullptr,
               "AI module missing from bundled librime");
       api->set_notification_handler(Notify, nullptr);
+      deployment_failed.store(false, std::memory_order_release);
       api->start_maintenance(true);
       api->join_maintenance_thread();
+      Require(!deployment_failed.load(std::memory_order_acquire),
+              "Rime schema deployment failed; inspect preceding diagnostics");
+      RimeConfig schema{};
+      Require(api->schema_open("ai_pinyin", &schema),
+              "compiled AI Pinyin schema missing");
+      char model_path[4096] = {};
+      const bool configured = api->config_get_string(
+          &schema, "ai_predict/model_path", model_path, sizeof(model_path));
+      api->config_close(&schema);
+      Require(configured && std::strcmp(model_path, argv[4]) == 0,
+              "compiled AI Pinyin model path is incorrect");
 
       auto session = api->create_session();
       Require(session != 0, "cannot create Rime session");

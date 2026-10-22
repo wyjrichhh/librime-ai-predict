@@ -6,7 +6,7 @@ pkgdesc='Fcitx5 Rime frontend with local AI prediction, model and Pinyin schema'
 arch=('aarch64' 'x86_64')
 url='https://github.com/wyjrichhh/librime-ai-predict'
 license=('BSD-3-Clause' 'LGPL-2.1-or-later' 'GPL-2.0-or-later' 'MIT' 'Apache-2.0')
-depends=('fcitx5>=5.1.22' 'rime-luna-pinyin' 'rime-prelude' 'rime-essay'
+depends=('fcitx5>=5.1.22' 'rime-luna-pinyin' 'rime-prelude' 'rime-essay' 'rime-stroke'
          'boost-libs' 'google-glog' 'yaml-cpp' 'gflags' 'leveldb' 'marisa'
          'opencc' 'glibc' 'gcc-libs')
 makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'boost'
