@@ -19,18 +19,11 @@ namespace {
 
 bool owns_logging = false;
 
-// Every external librime plugin statically links its own copy of glog, so the
-// process holds two glog instances that can't see each other. This is by
-// design -- the librime maintainers won't change the main project's linking
-// (rime/librime#983, #984), and the official guidance is that the two
-// instances must log to different files.
-//
-// So the plugin must initialize ITS OWN glog instance, or its LOG calls write
-// to an uninitialized sink and vanish. Our convention:
-//   - log_dir comes from RIME_LOG_DIR / GOOGLE_LOG_DIR (set by the frontend);
-//   - program name is the host's deployer.app_name + ".ai_predict", producing
-//     "rime.<frontend>.ai_predict.*.log.INFO" -- physically separate from the
-//     main process's "rime.<frontend>.*.log.INFO".
+// Merged plugins can share the host's glog instance. Reuse it without taking
+// ownership; finalize must not shut down logging initialized by the host.
+// When an external plugin has a separate glog instance, initialize it with a
+// distinct filename, following the guidance in rime/librime#983 and #984.
+// The frontend supplies RIME_LOG_DIR or GOOGLE_LOG_DIR when applicable.
 void EnsurePluginLoggingInitialized() {
   if (google::IsGoogleLoggingInitialized()) {
     return;
