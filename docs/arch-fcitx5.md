@@ -2,7 +2,7 @@
 
 ## 验证状态
 
-2026-10-22：已在 Try Omarchy 的 Arch Linux ARM（aarch64）环境完成静态依赖、官方 librime 与 AI 插件、Fcitx5-Rime 前端的实际编译和链接，生成完整 pacman 安装包。部署、真实模型推理、刷新通知、候选读取、提交和重新初始化自检通过。系统安装及桌面输入尚未验收，现有输入法未被替换；上游源码和词库的警告仍保留并记录在下文，不能将本次结果描述为“零警告”。
+2026-10-22：已在 Try Omarchy 的 Arch Linux ARM（aarch64）环境完成静态依赖、官方 librime 与 AI 插件、Fcitx5-Rime 前端的实际编译和链接，生成完整 pacman 安装包。部署、真实模型推理、刷新通知、候选读取、提交和重新初始化自检通过。随后已安装新包替换 Bangke，并验证桌面服务加载 Rime、控制接口切换到 `rime`；实际 GUI 键入及 AI 候选仍待用户验收；上游源码和词库的警告仍保留并记录在下文，不能将本次结果描述为“零警告”。
 
 测试环境：8 核 CPU、约 8 GiB 内存，GCC 16.1.1、CMake 4.4.4、Fcitx5 5.1.23、google-glog 0.7.1。x86_64 尚未测试。
 
@@ -78,7 +78,7 @@ PKGBUILD 的 `check()` 检查插件符号、前端 RPATH，并编译运行 `smok
 
 ## 安装与用户配置
 
-以下步骤待新包实测。安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
+本次已在 Omarchy 安装并完成服务及输入法切换检查。安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
 
 ```bash
 sudo pacman -U "$package_file"
@@ -93,6 +93,12 @@ patch:
 ```
 
 在 Fcitx5 的配置工具中添加 Rime 输入法，在 Rime 菜单中重新部署并选择「AI 拼音」。更新共享库后需要重新启动 Fcitx5 或重新登录桌面，使新进程加载新库。GTK / Qt 集成和 Wayland 输入法配置沿用 Fcitx5 / Omarchy 的系统设置。
+
+Omarchy 由 `omarchy-fcitx5.service` 管理进程。更新配置或共享库后使用 `systemctl --user restart omarchy-fcitx5.service`，不要额外运行 `fcitx5 -rd`；独立进程会占用 D-Bus 名称，导致服务循环重启。如果已经发生，先停止该服务，退出同一用户手动启动的 Fcitx5，再启动服务。用 `systemctl --user show omarchy-fcitx5.service -p MainPID -p NRestarts` 检查进程及重启情况。
+
+`fcitx5-configtool` 命令存在不代表图形配置工具已安装：本次环境缺少 `fcitx5-config-qt`，启动器只打开配置目录。应安装图形配置工具，或者先停止服务、备份并编辑 `~/.config/fcitx5/profile`，在当前组的 `Items` 中保留原有条目并增加 `Name=rime`，将 `DefaultIM` 设置为 `rime`，随后启动服务。`fcitx5-remote -s rime` 切换输入法，`fcitx5-remote -n` 应返回 `rime`。
+
+从 Bangke 迁移还应检查用户目录中的 `luna_pinyin.custom.yaml`。AI 拼音继承朙月拼音，旧覆盖配置会同时继承；本次发现它重复注入 AI translator/filter，并修改词典与 emoji 配置。已备份并将旧文件改名为 `luna_pinyin.custom.yaml.bangke-backup`，重新部署后确认 AI translator/filter 各出现一次。迁移时先保存原配置，再逐项合并所需设置，保留用户词库。
 
 AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。如果模型输出已经是首候选，则去重并保留原首选，不额外添加 AI 行。模型已经随包安装，完全离线推理。本补丁处理异步刷新；不承诺提供与鼠须管相同的候选注释配色。
 
