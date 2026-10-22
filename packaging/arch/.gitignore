@@ -1,0 +1,8 @@
+/src/
+/pkg/
+/plugin/
+/librime/
+/fcitx5-rime/
+/*.log
+/*.pkg.tar.*
+/zh-base-ct2-int8.tar.gz

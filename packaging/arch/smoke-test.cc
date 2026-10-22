@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
       Require(custom.good(), "cannot write test model path");
     }
 
-    // Resolve the compiled frontend against this test process's private Rime.
+    // Resolve the compiled frontend against this test process's bundled Rime.
     // This checks ELF dependencies; it does not exercise Fcitx's desktop UI.
     void* frontend = dlopen(argv[5], RTLD_NOW | RTLD_LOCAL);
     if (!frontend) {
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     for (int cycle = 0; cycle < 2; ++cycle) {
       api->initialize(&traits);
       Require(api->find_module("ai_predict") != nullptr,
-              "AI module missing from private librime");
+              "AI module missing from bundled librime");
       api->set_notification_handler(Notify, nullptr);
       api->start_maintenance(true);
       api->join_maintenance_thread();

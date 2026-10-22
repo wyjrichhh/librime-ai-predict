@@ -18,7 +18,7 @@ conflicts=('fcitx5-rime' 'bangke-pinyin')
 _plugin_commit=$(git -C "$startdir/../.." rev-parse --verify HEAD) || exit 1
 _rime_commit=1b3417d2b6a11b5e50e0e1fa9dc396056aa11dce
 _fcitx_commit=f5048611ea60e53955d5f013f608551e85d38f09
-_private_libdir=lib/fcitx5-rime-ai-predict
+_rime_libdir=lib/fcitx5-rime-ai-predict
 source=("plugin::git+https://github.com/wyjrichhh/librime-ai-predict.git#commit=$_plugin_commit"
         "librime::git+https://github.com/rime/librime.git#commit=$_rime_commit"
         "fcitx5-rime::git+https://github.com/fcitx/fcitx5-rime.git#commit=$_fcitx_commit"
@@ -54,7 +54,7 @@ build() {
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
         -DCMAKE_INSTALL_PREFIX=/usr \
-        -DCMAKE_INSTALL_LIBDIR="$_private_libdir" \
+        -DCMAKE_INSTALL_LIBDIR="$_rime_libdir" \
         -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON \
         -DBUILD_SHARED_LIBS=ON -DBUILD_MERGED_PLUGINS=ON \
         -DBUILD_TEST=OFF -DBUILD_DATA=OFF
@@ -65,16 +65,16 @@ build() {
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.10 \
         -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib \
-        -DCMAKE_INSTALL_RPATH="/usr/$_private_libdir" \
+        -DCMAKE_INSTALL_RPATH="/usr/$_rime_libdir" \
         -DCMAKE_CXX_FLAGS="$CXXFLAGS -I$srcdir/rime-stage/usr/include" \
-        -DRIME_TARGET="$srcdir/rime-stage/usr/$_private_libdir/librime.so" \
+        -DRIME_TARGET="$srcdir/rime-stage/usr/$_rime_libdir/librime.so" \
         -DRime_VERSION=1.17.0 -DRIME_DATA_DIR=/usr/share/rime-data
     cmake --build "$srcdir/build-fcitx"
     DESTDIR="$srcdir/frontend-stage" cmake --install "$srcdir/build-fcitx"
 }
 
 check() {
-    # Verify the plugin was merged and the frontend has the private lookup path.
+    # Verify the plugin was merged and the frontend has the package-local lookup path.
     nm -D -C "$srcdir/build-rime/lib/librime.so" | grep -F 'rime_require_module_ai_predict()'
     readelf -d "$srcdir/frontend-stage/usr/lib/fcitx5/librime.so" | \
         grep -F '[/usr/lib/fcitx5-rime-ai-predict]'
@@ -94,8 +94,8 @@ check() {
 
 package() {
     cp -a "$srcdir/frontend-stage/." "$pkgdir/"
-    install -d "$pkgdir/usr/$_private_libdir"
-    cp -a "$srcdir/rime-stage/usr/$_private_libdir/"librime.so* "$pkgdir/usr/$_private_libdir/"
+    install -d "$pkgdir/usr/$_rime_libdir"
+    cp -a "$srcdir/rime-stage/usr/$_rime_libdir/"librime.so* "$pkgdir/usr/$_rime_libdir/"
 
     local vocab model_dir
     vocab=$(find "$srcdir/model" -name shared_vocabulary.json -type f -print -quit)
