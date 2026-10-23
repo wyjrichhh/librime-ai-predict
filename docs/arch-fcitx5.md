@@ -12,7 +12,7 @@ Fcitx5 主程序和基础词库由包依赖交给 pacman 安装；GTK / Qt 集�
 
 随包编译的 librime 安装到 `/usr/lib/fcitx5-rime-ai-predict/`，前端通过 RPATH 查找，避免覆盖系统已有的同名库；这只是安装路径隔离，不是另一个源码项目，也不修改全局 `ld.so.conf`。模型位于 `/usr/share/rime-data/predict_models/zh-base-ct2-int8/`，方案使用绝对路径引用它，不需要将模型复制到每个用户的目录。
 
-本包提供并冲突于 `fcitx5-rime`，也声明与 `bangke-pinyin` 冲突。先检查现有输入法；不要用 `--overwrite` 绕过冲突或直接删除其文件。首次验证优先检查包内容并在隔离的用户数据目录测试，替换现有桌面输入法前保留备份和可恢复的原包。
+本包提供并冲突于 `fcitx5-rime`。支持与使用独立 addon、库名和用户数据目录的新版 `bangke-pinyin` 共存；旧版全局接管候选面板或复用 `librime.so.1` 的蚌壳包需要先升级。先检查现有输入法；不要用 `--overwrite` 绕过冲突或直接删除其文件。首次验证优先检查包内容并在隔离的用户数据目录测试，替换现有桌面输入法前保留备份和可恢复的原包。
 
 ## 准备依赖
 
@@ -70,7 +70,7 @@ PKGBUILD 的 `check()` 检查插件符号、前端 RPATH，并编译运行 `smok
 
 ## 安装与用户配置
 
-安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
+安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。包声明了实际链接的 OpenCC SONAME 依赖；OpenCC ABI 更新后应重新编译安装包，不能用同名软链接绕过依赖。
 
 ```bash
 sudo pacman -U "$package_file"
