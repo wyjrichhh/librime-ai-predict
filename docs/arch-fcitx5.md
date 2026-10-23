@@ -1,24 +1,18 @@
 # Arch Linux / Omarchy：构建 Fcitx5 AI 拼音完整包
 
-## 验证状态
-
-2026-10-22：已在 Try Omarchy 的 Arch Linux ARM（aarch64）环境完成静态依赖、官方 librime 与 AI 插件、Fcitx5-Rime 前端的实际编译和链接，生成完整 pacman 安装包。部署、真实模型推理、刷新通知、候选读取、提交和重新初始化自检通过。随后已安装新包替换 Bangke，并验证桌面服务加载 Rime、控制接口切换到 `rime`；用户随后在同一 Omarchy 桌面实际完成输入和 AI 推理，确认安装包可用；上游源码和词库的警告仍保留并记录在下文，不能将本次结果描述为“零警告”。
-
-测试环境：8 核 CPU、约 8 GiB 内存，GCC 16.1.1、CMake 4.4.4、Fcitx5 5.1.23、google-glog 0.7.1。x86_64 尚未测试。
-
 ## 包含内容与系统依赖
 
 `fcitx5-rime-ai-predict` 是供系统 Fcitx5 加载的 Rime 输入法包，包含：
 
 - Fcitx5-Rime 5.1.17 前端，并附带 `_refresh_ui` 异步刷新补丁。
-- 从官方 `rime/librime` 源码编译并合入 `ai_predict` 的 librime 1.17.0；CTranslate2 / RUY 静态链接进入该库。使用的提交与本工作区 `librime/` checkout 一致，没有换用其他 fork。
+- 从官方 `rime/librime` 源码编译并合入 `ai_predict` 的 librime 1.17.0；CTranslate2 / RUY 静态链接进入该库。上游版本由 PKGBUILD 中的提交固定。
 - `zh-base-ct2-int8` 简体模型，以及继承朙月拼音的 `ai_pinyin` 方案。
 
 Fcitx5 主程序和基础词库由包依赖交给 pacman 安装；GTK / Qt 集成见下面的环境准备命令。桌面环境和整个 Fcitx5 框架不会复制进包内。
 
 随包编译的 librime 安装到 `/usr/lib/fcitx5-rime-ai-predict/`，前端通过 RPATH 查找，避免覆盖系统已有的同名库；这只是安装路径隔离，不是另一个源码项目，也不修改全局 `ld.so.conf`。模型位于 `/usr/share/rime-data/predict_models/zh-base-ct2-int8/`，方案使用绝对路径引用它，不需要将模型复制到每个用户的目录。
 
-本包提供并冲突于 `fcitx5-rime`，也声明与 `bangke-pinyin` 冲突。测试用 Omarchy 已预装 `bangke-pinyin`。先检查现有输入法；不要用 `--overwrite` 绕过冲突或直接删除其文件。首次验证优先检查包内容并在隔离的用户数据目录测试，替换现有桌面输入法前保留备份和可恢复的原包。
+本包提供并冲突于 `fcitx5-rime`，也声明与 `bangke-pinyin` 冲突。先检查现有输入法；不要用 `--overwrite` 绕过冲突或直接删除其文件。首次验证优先检查包内容并在隔离的用户数据目录测试，替换现有桌面输入法前保留备份和可恢复的原包。
 
 ## 准备依赖
 
@@ -45,7 +39,7 @@ makepkg --printsrcinfo
 makepkg --syncdeps --log
 ```
 
-这份 PKGBUILD 必须放在完整、已提交并已推送的插件 Git checkout 中使用。它从所在仓库取得 HEAD，并让 makepkg 从公开仓库获取同一个提交；未提交的本地改动不会进入构建。跨机器测试必须先发布测试提交，远端 fetch 后检出同一提交并核对 SHA，不能靠复制未提交的文件同步源码。
+这份 PKGBUILD 必须放在完整、已提交并已推送的插件 Git checkout 中使用。它从所在仓库取得 HEAD，并让 makepkg 从公开仓库获取同一个提交；未提交的本地改动不会进入构建。
 
 上游源码固定为：
 
@@ -59,8 +53,6 @@ makepkg --syncdeps --log
 
 日志由 `makepkg --log` 保存在打包目录，失败时应检查完整日志，不只看最后的退出码。
 
-开发分支上的修改须先提交并推送，再让构建机 fetch、检出和核对同一 SHA；构建机外层配方仓库与 makepkg 的 `src/plugin` 必须指向同一提交。若后者的 origin 指向旧本地镜像，应从公开仓库显式 fetch 目标提交，不能把缓存分支名当作最新源码。
-
 ## 检查构建产物
 
 ```bash
@@ -70,15 +62,15 @@ pacman -Qip "$package_file"
 pacman -Qlp "$package_file"
 ```
 
-使用 `makepkg --packagelist` 列出的主包准确路径执行检查和安装，不要把 debug 包误当作主包。压缩格式由 makepkg 配置决定，本次 Omarchy 实测输出 `.pkg.tar.xz`，不能假定所有环境都输出 `.pkg.tar.zst`。
+使用 `makepkg --packagelist` 列出的主包准确路径执行检查和安装，不要把 debug 包误当作主包。压缩格式由 makepkg 配置决定，可能为 `.pkg.tar.xz` 或 `.pkg.tar.zst`。
 
-必须检查前端、随包编译的 librime、模型和方案均在包内，且没有 `/home/`、构建临时目录或用户配置文件。再解包检查 ELF 架构、RPATH 与共享库依赖，确认加载的是本包的 librime，而不是测试机器上 `bangke-pinyin` 自带的库。
+必须检查前端、随包编译的 librime、模型和方案均在包内，且没有 `/home/`、构建临时目录或用户配置文件。再解包检查 ELF 架构、RPATH 与共享库依赖，确认加载的是本包的 librime，避免意外加载其他输入法包自带的库。
 
 PKGBUILD 的 `check()` 检查插件符号、前端 RPATH，并编译运行 `smoke-test.cc`：加载前端 ELF、在独立 Rime 数据目录部署方案、运行真实模型推理、等待异步刷新通知、检查候选和提交，再完整初始化第二次以检查重载。该测试不启动桌面 Fcitx5 UI，不能代替真实桌面输入验收。
 
 ## 安装与用户配置
 
-本次已在 Omarchy 安装，完成服务、输入法切换检查及用户实际输入和 AI 推理验收。安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
+安装前保存现有包和配置，按 pacman 的冲突提示审阅替换关系。
 
 ```bash
 sudo pacman -U "$package_file"
@@ -96,13 +88,13 @@ patch:
 
 Omarchy 由 `omarchy-fcitx5.service` 管理进程。更新配置或共享库后使用 `systemctl --user restart omarchy-fcitx5.service`，不要额外运行 `fcitx5 -rd`；独立进程会占用 D-Bus 名称，导致服务循环重启。如果已经发生，先停止该服务，退出同一用户手动启动的 Fcitx5，再启动服务。用 `systemctl --user show omarchy-fcitx5.service -p MainPID -p NRestarts` 检查进程及重启情况。
 
-`fcitx5-configtool` 命令存在不代表图形配置工具已安装：本次环境缺少 `fcitx5-config-qt`，启动器只打开配置目录。应安装图形配置工具，或者先停止服务、备份并编辑 `~/.config/fcitx5/profile`，在当前组的 `Items` 中保留原有条目并增加 `Name=rime`，将 `DefaultIM` 设置为 `rime`，随后启动服务。`fcitx5-remote -s rime` 切换输入法，`fcitx5-remote -n` 应返回 `rime`。
+如果 `fcitx5-configtool` 只打开配置目录，检查是否已安装图形配置工具 `fcitx5-config-qt`；或者先停止服务、备份并编辑 `~/.config/fcitx5/profile`，在当前组的 `Items` 中保留原有条目并增加 `Name=rime`，将 `DefaultIM` 设置为 `rime`，随后启动服务。`fcitx5-remote -s rime` 切换输入法，`fcitx5-remote -n` 应返回 `rime`。
 
-从 Bangke 迁移还应检查用户目录中的 `luna_pinyin.custom.yaml`。AI 拼音继承朙月拼音，旧覆盖配置会同时继承；本次发现它重复注入 AI translator/filter，并修改词典与 emoji 配置。已备份并将旧文件改名为 `luna_pinyin.custom.yaml.bangke-backup`，重新部署后确认 AI translator/filter 各出现一次。迁移时先保存原配置，再逐项合并所需设置，保留用户词库。
+从 Bangke 迁移还应检查用户目录中的 `luna_pinyin.custom.yaml`。AI 拼音继承朙月拼音，旧覆盖配置也会被继承，可能重复注入 AI translator/filter，或覆盖词典与 emoji 设置。迁移时先保存原配置，再逐项合并所需设置，保留用户词库；重新部署后检查 AI translator/filter 各出现一次。
 
 AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。如果模型输出已经是首候选，则去重并保留原首选，不额外添加 AI 行。模型已经随包安装，完全离线推理。本补丁处理异步刷新；不承诺提供与鼠须管相同的候选注释配色。
 
-## 运行验收
+## 开发与运行检查
 
 应使用新的临时 XDG 配置和数据目录，避免将原输入法的配置、模型或已部署缓存当作新包的能力。至少完成：
 
@@ -111,61 +103,24 @@ AI 方案默认简体，新插入或提权的 AI 候选默认位于第 2 位。�
 3. 输入足够长的拼音产生 AI 候选；停止按键后，异步推理结果能主动刷新到菜单中。
 4. 输入上文并提交，再继续输入，验证上下文预测、候选选择和提交。
 5. 验证翻页、移动高亮、清空输入、重新部署及退出；特别检查退出时 glog 生命周期。
-6. 保存包文件校验和、源码 SHA、构建日志和运行日志。真实桌面输入尚未验证时必须明确记录。
+6. 报告问题时附上包文件校验和、源码 SHA、构建日志和相关运行日志。分享日志前移除输入内容等个人信息。
 
-## 实测问题记录（2026-10-22）
+## 常见问题
 
-代码与配置验证基线为插件提交 `ca77262f522c3cba36147897a01626d9d869166b`，对应安装包约 205 MiB。后续文档提交会改变包版本中的 Git 短 SHA；以该次 `makepkg --packagelist`、构建日志和产物校验和为准。
+### 增量构建使用旧源码
 
-| 验证项 | 结果 |
-| --- | --- |
-| 静态库 | `libctranslate2.a` 含 115 个成员，`libruy.a` 含 47 个成员，均实际编译生成并链接进 librime。 |
-| 前端与后端 | 两者都是 aarch64 ELF；前端的 RUNPATH 恰为 `/usr/lib/fcitx5-rime-ai-predict`，所有动态依赖可解析。后端不依赖额外的 CTranslate2 / RUY 共享库。 |
-| 资源 | 包内 6 个模型文件逐一与经校验的模型源文件比较，字节完全一致；AI 方案也与仓库文件一致。 |
-| 源码路径 | 两个随包 ELF 均不再含本次 `$srcdir` 路径。 |
-| 运行自检 | 两轮输入 `jintiantianqihenhao` 均预测并提交「今天天气很好」，收到异步刷新通知；第二轮在 finalize 后重新初始化，正常完成。 |
-| 桌面验收 | 用户在安装上述包的 Omarchy 桌面切换到中州韵，实际完成输入和 AI 推理。 |
-| 覆盖边界 | 自动自检加载前端 ELF 并直接调用 Rime API；用户桌面验收确认实际输入和推理可用，尚未逐项验收所有 GTK / Qt 应用、上下文预测及候选交互场景。 |
+修改插件后，应先将提交发布到可访问的仓库，再重新运行默认的 makepkg 流程。`makepkg --noextract` 会复用现有 `$srcdir`，不会自动更新其中的插件 checkout 或重新应用前端补丁。更换提交后，优先重新提取源码并构建，避免缓存掩盖依赖或补丁问题。
 
-第一次构建从空源码目录启动，后续修复通过核对提交后使用 `makepkg --noextract --log --force` 增量验证。`--noextract` 会明确警告 `Using existing $srcdir/ tree`；更新提交时还必须同步 makepkg 的 `src/plugin` checkout，并按新提交重新应用前端补丁，不能只更新外层 PKGBUILD。普通用户首次构建应使用上面的默认流程。
+### 词库部署出现 `Encode failure`
 
-| 问题 | 证据、影响与处理状态 |
-| --- | --- |
-| README 的「非 macOS」构建步骤实际上依赖 Xcode / brew / Squirrel | 已更正入口，Arch 使用本文的 Fcitx5 流程。 |
-| 构建依赖未安装 | 已安装 cmake、ninja、extra-cmake-modules、boost、nlohmann-json；其余运行库已存在于测试机器。 |
-| makepkg 调试包工具缺失 | 检查发现缺少 debugedit，已通过 pacman 安装，保留默认调试信息处理流程。 |
-| 安装 base-devel 时镜像返回 404 | `texinfo-7.3-1-aarch64.pkg.tar.xz` 返回 404，整个安装事务失败，未升级任何包。后续单独安装上述可用构建依赖成功。base-devel 元包仍未安装；不能将当前环境称为干净的 base-devel 验证环境。文档提供完整更新后安装的标准流程，镜像一致性仍需确认。 |
-| 首次 `make deps` 失败 | 基线提交 `5ee4dc5` 下 CMake 报 `ruy_cpuinfo` 引用不存在的 `cpuinfo::cpuinfo`。原因是 Makefile 未初始化 RUY 的嵌套 cpuinfo；已加入初始化命令，后续构建通过。 |
-| CMake 弃用和策略警告 | 依赖与前端的最低策略版本提高到 3.10，针对 Boost 设置 CMP0167=NEW，保留其他依赖使用 librime 的查找模块。 |
-| 空目录构建缺少 glog 链接项 | 全局优先配置包导致首次配置不提供 librime 需要的旧式依赖变量，旧缓存掩盖了问题。改为仅对 Boost 设置新策略后，删除 CMakeCache 重新探测，确认 `Glog_LIBRARY=/usr/lib/libglog.so` 和 `Gflags_LIBRARY=/usr/lib/libgflags.so`；前后端、运行自检及打包均通过。失败日志为 `package-build-clean.log`，修复后的日志为 `package-build-clean-retry.log`。 |
-| 静态归档合并使用 macOS 工具 | 基线 GNU libtool 失败后 echo 仍错误报告成功。Linux 改用 GNU ar MRI，生成包含 47 个成员的 RUY 归档；Linux 构建和真实推理均通过。macOS 分支保留 Apple libtool，本次未重新构建 macOS。 |
-| 静态库链接顺序不正确 | 改为 CT2、RUY、CPU features 的顺序，后端链接及真实推理通过。 |
-| glog 导出宏重复定义 | 插件原先将宿主为共享 glog 设置的导出宏覆盖为空。现继承 librime 的设置，重新编译无重定义警告。 |
-| 包内泄漏构建目录 | 新增编译器文件路径映射，并显式传递打包器的编译选项。两个随包 ELF 检查均无本次源码目录，makepkg 不再报告包内源码路径。 |
-| CTranslate2 / spdlog 编译警告 | 补齐 cpuinfo 后，基线在 GCC 16.1.1 下出现 stringop-overread（cpuinfo）、array-bounds（CT2 decoding）、dangling-reference（spdlog/fmt），以及 unused-parameter、comment、implicit-fallthrough、reorder、maybe-uninitialized 等警告；完整日志保留在远端。来源和运行影响仍需逐项核查，不能声明构建无警告。 |
-| 上游前端不处理刷新通知 | 包附补丁在 Fcitx 事件循环中更新匹配会话的聚焦输入框。补丁已编译、前端 ELF 加载通过，用户已在桌面完成 AI 推理；停止按键后的刷新时序仍需专项检查。 |
-| 刷新通知的封装格式判断错误 | 已按官方 librime 的 `_refresh_ui=source=ai_predict&kind=full` 封装修正前端补丁和自检，Rime API 自检确认两轮均收到刷新通知。 |
-| 插件可能关闭宿主的 glog | 仅关闭插件自己初始化的实例。两轮初始化 / finalize 均正常结束，没有关闭宿主 glog 导致的重载故障。 |
-| 已有输入法包冲突 | Omarchy 预装 `bangke-pinyin 5.0.19-12`，提供并冲突于 `fcitx5-rime`。新 PKGBUILD 显式声明冲突；实测安装时已替换它，新包在桌面完成推理。 |
-| 方案能打包但不能部署 | 将 Rime 在继承展开前要求的方案元数据放到顶层，并显式依赖 rime-stroke。AI 拼音与 stroke 的实际部署通过，自检同时检查部署状态和编译后的配置。 |
-| AI 方案忽略用户自定义配置 | 显式 __patch 会关闭自动 custom 补丁。现以补丁列表在默认设置后加载 `ai_pinyin.custom:/patch?`；自检确认自定义模型路径生效，并成功加载对应模型。 |
-| 词库预设词条编码警告 | 标准 rime-essay 的 193 条含间隔号或全角字母等词条出现 `Encode failure`。已核对 EntryCollector：失败发生在预设词汇补充阶段，这些词条被跳过，部署仍成功；例如「亞歷山大·杜布切克」和「ＡＡ制」。这是实际词汇覆盖限制，不是修复完成；未修改发行版词库或隐藏日志。 |
-| 首次配置文件不存在 | Rime 在首次生成 build / user 文件，以及查找可选 grammar 配置时记录不存在的路径；随后按默认流程部署成功，未发现缺失模型或 AI 组件的错误。 |
-| 远端目录权限异常 | 环境检查发现 `~/.cache/dconf` 由 root 持有，权限 0700，普通用户遍历 HOME 时报 Permission denied。此目录不属于构建源码；未修改它，仍需单独处理桌面环境权限。 |
-| 本地 Ruby 校验的 PATH 权限警告 | macOS 上 `/opt/homebrew/bin` 权限为 0777，Ruby 报 Insecure world writable dir。该目录属于本机工具环境，未改权限；以仅含系统目录的 PATH 重新运行 YAML 解析成功。 |
+`rime-essay` 的部分预设词条包含间隔号或全角字母等无法由当前拼音方案编码的字符，例如「亞歷山大·杜布切克」和「ＡＡ制」。Rime 会跳过这些预设词条，影响相应词汇的覆盖；应结合后续日志和方案部署结果判断部署是否成功。
 
-基线日志位于测试机 `~/build/librime-ai-predict-audit/baseline-make-deps.log` 和 `baseline-with-cpuinfo.log`。完整构建与运行自检的迭代日志为同目录的 `package-build-01.log`、`package-build-02.log`、`package-build-03.log`；第 3 轮正常产出安装包。随后从空源码 / 构建目录复验，发现并修复依赖查找缓存问题，记录在 `package-build-clean.log` 和 `package-build-clean-retry.log`。最终重试退出码为 0，运行日志没有 ERROR 级记录。所有源码通过 Git 获取并核对提交。
+### 上游依赖的编译警告
 
-剩余上游编译警告的核查边界：Fcitx5-Rime 的 `RIME_STRUCT` 使用 `{0}`，其余成员按 C++ 聚合规则初始化为零，不是未初始化内存；CT2 的 tensor-parallel 局部变量警告位于当前 CPU 单副本路径未使用的分支。cpuinfo 的 Raspberry Pi 修正函数将长度为 9 的 revision 参数声明为至少 64 字节，实际读取使用 revision 的长度界限，声明仍不一致；spdlog/fmt 的临时 mapper、CT2 的形状边界告警尚未得到覆盖所有输入的证明。clog 忽略 write 返回值，可能丢失日志；其余还有未使用参数、初始化顺序、fallthrough 和注释警告。没有关闭这些告警，也没有把两轮推理通过当作所有上游问题已解决。
+GCC 16 构建可能在 CTranslate2、cpuinfo 和 spdlog/fmt 中报告 `stringop-overread`、`array-bounds`、`dangling-reference` 等警告。这些警告涉及缓冲区长度、形状边界或对象生命周期，需要结合具体依赖版本和触发代码分析。构建成功或推理自检通过不足以排除相关风险；报告问题时应保留完整诊断和编译器版本。
 
 ## 参考
 
 - [Arch makepkg 手册](https://man.archlinux.org/man/makepkg.8)：构建、日志与包管理参数。
 - [Arch PKGBUILD 手册](https://man.archlinux.org/man/PKGBUILD.5)：依赖、冲突和打包函数。
 - [Fcitx5-Rime 源码](https://github.com/fcitx/fcitx5-rime)：前端构建要求和通知处理。
-
-## 与 PR #2 的整合
-
-[PR #2](https://github.com/wyjrichhh/librime-ai-predict/pull/2) 修复了相同的 Linux RUY 静态归档合并问题：Linux 使用 GNU ar MRI，macOS 保留 libtool，并让失败直接传播。审查时已在 Omarchy 独立验证其合并宏的归档成员与失败退出行为。本分支已复用该宏和 `cd` 失败处理，并保留嵌套子模块初始化、编译选项传递、链接顺序、glog 生命周期与完整打包流程，避免重复维护两套合并实现。
-
-PR #2 合并后，整合提交 `e57d2bda921f2e1c5a6957e269e1e0f552a87241` 在 Omarchy 完成增量编译、两轮部署 / 推理 / 刷新 / 提交 / 重新初始化自检及打包，退出码为 0，生成 `fcitx5-rime-ai-predict-0.1.0.r48.ge57d2bd-1-aarch64.pkg.tar.xz`。日志为 `~/build/librime-ai-predict-audit/package-build-integrated-final.log`。
